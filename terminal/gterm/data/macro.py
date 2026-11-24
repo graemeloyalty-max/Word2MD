@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import io
 import json
+import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
@@ -47,20 +48,36 @@ class MacroSeries:
         return s.index[-1], float(s.iloc[-1])
 
 
-def _get(url: str) -> bytes:
+def _get(url: str, ttl_s: float = TTL_S) -> bytes:
+    """Download with caching. Retries once on a timeout or dropped connection (slow public APIs),
+    but not on refusals (403 blocked host, 429 rate limit), where a retry can't help."""
     key = f"macro|{url}"
-    if (hit := cache.get(key, TTL_S)) is not None:
+    if (hit := cache.get(key, ttl_s)) is not None:
         return hit
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "*/*"})
-    try:
-        with urllib.request.urlopen(req, timeout=25) as r:
-            body = r.read()
-    except Exception as exc:
-        host = urllib.parse.urlparse(url).hostname
-        hint = " The network blocked this host: add it to the allowed domains." if "403" in str(exc) or "Tunnel" in str(exc) else ""
-        raise DataSourceError(f"{host} request failed: {exc}.{hint}") from exc
-    cache.put(key, body)
-    return body
+    last_exc = None
+    for attempt in range(2):
+        try:
+            with urllib.request.urlopen(req, timeout=45) as r:
+                body = r.read()
+            cache.put(key, body)
+            return body
+        except urllib.error.HTTPError as exc:
+            last_exc = exc
+            break
+        except Exception as exc:  # timeouts, resets
+            last_exc = exc
+            if "403" in str(exc) or "Tunnel" in str(exc):
+                break
+    host = urllib.parse.urlparse(url).hostname
+    msg = str(last_exc)
+    if "403" in msg or "Tunnel" in msg:
+        hint = " The network blocked this host: add it to the allowed domains."
+    elif "429" in msg:
+        hint = " The service is rate-limiting requests: try again in a few minutes."
+    else:
+        hint = ""
+    raise DataSourceError(f"{host} request failed: {msg}.{hint}") from last_exc
 
 
 def _now():

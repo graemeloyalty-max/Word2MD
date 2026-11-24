@@ -184,3 +184,25 @@ editable DCF, peer multiples, a quality score and a country/currency overlay. SE
 - Parsers on sample responses for FRED (both CSV header styles, "." for missing), World Bank (nulls, error message), IMF, ECB (daily
   and monthly), SARB (field-name case), RSS (publisher suffix stripped), Yahoo news (both formats), GDELT (articles, timeline);
   the yield curve picks the right date.
+
+### Step 7: Live verification (after you allowed the macro/news domains)
+- Every adapter was run against the real services:
+  - **FRED:** US 10y 4.92%, Fed funds 3.88%, UK and South African OECD rates.
+  - **ECB:** deposit rate 2.50%, refinancing rate 2.65%, HICP 1.9%.
+  - **World Bank:** GDP growth for all 15 countries.
+  - **IMF:** forecasts to 2031.
+  - **Yield curves:** full US Treasury and euro AAA curves.
+  - **SARB:** policy rate 7.25%, prime 10.75%, CPI 5.2%, bond yields, ZARONIA. The guessed field format matched.
+  - **News:** Google News and Yahoo company news.
+- **GDELT does not work from the cloud sandbox:** the host is allowed, but GDELT closes every connection before answering
+  (even plain curl). This fits GDELT refusing cloud-server addresses; it should work from your own machine. Fallback added:
+  when GDELT fails, the events tab shows Google News for the same theme (GDELT filters stripped), with a note that the map
+  and tone chart need GDELT.
+- **Fixes from the live run:**
+  - World Bank occasionally takes >25 s: the timeout is now 45 s, with one retry on timeouts or dropped connections (never on a blocked host or rate limit).
+  - Google News returned HTTP 429 after rapid reloads: it now shows a "rate-limited, try again in a few minutes" message.
+  - News was using the 12 h macro cache: headlines now refresh every 15 minutes.
+  - Yield-curve x-axis now labelled 3M, 1Y, 10Y... instead of raw log ticks.
+- All Macro tabs (countries, policy rates, curves, SARB, explorer) and News tabs load in a browser with no exceptions.
+
+**Phase 3 status:** complete. GDELT's map and tone chart are verified only on sample responses (blocked from the sandbox by GDELT itself).

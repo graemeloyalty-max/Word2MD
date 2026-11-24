@@ -19,6 +19,8 @@ import pandas as pd
 from .base import DataSourceError
 from .macro import _get
 
+NEWS_TTL_S = 15 * 60  # headlines go stale fast
+
 
 @dataclass
 class Article:
@@ -56,7 +58,7 @@ def parse_rss(xml_bytes: bytes, source: str) -> list[Article]:
 
 def google_news(query: str, lang: str = "en", region: str = "US") -> list[Article]:
     q = urllib.parse.urlencode({"q": query, "hl": f"{lang}-{region}", "gl": region, "ceid": f"{region}:{lang}"})
-    return parse_rss(_get(f"https://news.google.com/rss/search?{q}"), "Google News")
+    return parse_rss(_get(f"https://news.google.com/rss/search?{q}", NEWS_TTL_S), "Google News")
 
 
 # ---------------------------------------------------------------- yfinance company news
@@ -109,7 +111,7 @@ def parse_gdelt_articles(payload: dict) -> list[Article]:
 def gdelt_articles(query: str, timespan: str = "3d", max_records: int = 150) -> list[Article]:
     q = urllib.parse.urlencode({"query": query, "mode": "artlist", "format": "json", "maxrecords": max_records,
                                 "timespan": timespan, "sort": "datedesc"})
-    raw = _get(f"{GDELT_URL}?{q}")
+    raw = _get(f"{GDELT_URL}?{q}", NEWS_TTL_S)
     try:
         return parse_gdelt_articles(json.loads(raw))
     except json.JSONDecodeError as exc:  # GDELT answers bad queries with plain text
@@ -128,11 +130,19 @@ def parse_gdelt_timeline(payload: dict) -> pd.DataFrame:
 def gdelt_timeline(query: str, mode: str = "timelinetone", timespan: str = "3m") -> pd.DataFrame:
     """mode: 'timelinetone' (average tone, -ve = negative coverage) or 'timelinevol' (share of all coverage)."""
     q = urllib.parse.urlencode({"query": query, "mode": mode, "format": "json", "timespan": timespan})
-    raw = _get(f"{GDELT_URL}?{q}")
+    raw = _get(f"{GDELT_URL}?{q}", NEWS_TTL_S)
     try:
         return parse_gdelt_timeline(json.loads(raw))
     except json.JSONDecodeError as exc:
         raise DataSourceError(f"GDELT: {raw[:200].decode(errors='replace')}") from exc
+
+
+def plain_query(gdelt_query: str) -> str:
+    """Turn GDELT syntax into a plain search: drop filters like sourcecountry:x and brackets/quotes."""
+    import re
+
+    q = re.sub(r"\b\w+:\S+", " ", gdelt_query)
+    return " ".join(re.sub(r"[()\"]", " ", q).split())
 
 
 def to_frame(articles: list[Article]) -> pd.DataFrame:

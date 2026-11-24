@@ -108,3 +108,7 @@ def test_to_frame_dedupes_and_sorts():
     arts = news.parse_rss(RSS, "Google News") + news.parse_rss(RSS, "Google News")
     df = news.to_frame(arts)
     assert len(df) == 2 and df.iloc[0]["title"] == "SAP beats forecasts"
+
+
+def test_plain_query_for_google_fallback():
+    assert news.plain_query('sourcecountry:southafrica (economy OR "rand")') == "economy OR rand"

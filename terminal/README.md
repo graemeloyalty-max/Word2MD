@@ -3,7 +3,7 @@
 A personal financial research terminal for global equity evaluation, written from scratch
 in Python and Streamlit. No Fincept Terminal code is used.
 
-**Status: Phase 3 (Portfolio, macro, news, dashboard) built.** Macro and news sources still need live verification; see BUILD_LOG.md. See [BUILD_LOG.md](BUILD_LOG.md) for how it was built, step by step.
+**Status: Phase 3 (Portfolio, macro, news, dashboard) complete.** See BUILD_LOG.md for how it was built. See [BUILD_LOG.md](BUILD_LOG.md) for how it was built, step by step.
 
 ## Run it
 
@@ -11,7 +11,7 @@ in Python and Streamlit. No Fincept Terminal code is used.
 cd terminal
 pip install -r requirements.txt
 streamlit run Home.py        # opens http://localhost:8501
-python -m pytest -q          # 61 tests
+python -m pytest -q          # 62 tests
 ```
 
 You can also use GitHub Codespaces: open the repo in a Codespace and the app installs and starts by itself (`.devcontainer/`).

@@ -65,9 +65,17 @@ with t_geo:
     pick = c1.selectbox("Theme", list(presets))
     q = c1.text_input("GDELT query", presets[pick], key=f"gq_{pick}")
     span = c2.selectbox("Window", ["24h", "3d", "7d", "1m"], index=1)
-    arts = safe(news.gdelt_articles, q, span, 250)
+    try:
+        arts, gdelt_ok = news.gdelt_articles(q, span, 250), True
+    except DataSourceError as exc:
+        gdelt_ok = False
+        st.warning(f"GDELT is unavailable right now ({exc}). Showing Google News for the same theme instead; "
+                   "the coverage map and tone chart need GDELT.")
+        arts = safe(news.google_news, news.plain_query(q))
     df = news.to_frame(arts)
-    if not df.empty:
+    if not df.empty and not gdelt_ok:
+        show_articles(df, 60)
+    elif not df.empty:
         g1, g2 = st.columns([3, 2])
         with g1:
             counts = df[df["country"] != ""].groupby("country").size().reset_index(name="articles")

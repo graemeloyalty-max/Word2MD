@@ -92,7 +92,9 @@ with t_curve:
         fig.add_scatter(x=curve.index, y=curve.values, name=f"{d:%Y-%m-%d}", mode="lines+markers")
         if then is not None:
             fig.add_scatter(x=then[0].index, y=then[0].values, name=f"{then[2]:%Y-%m-%d}", mode="lines+markers", line=dict(dash="dot"))
-        fig.update_layout(height=420, xaxis_title="maturity (years)", yaxis_title="yield %", xaxis_type="log",
+        ticks = {v: k for k, v in macro.TENOR_YEARS.items()}
+        fig.update_xaxes(tickvals=list(ticks), ticktext=list(ticks.values()))
+        fig.update_layout(height=420, xaxis_title="maturity (log scale)", yaxis_title="yield %", xaxis_type="log",
                           margin=dict(l=0, r=0, t=20, b=0), legend=dict(orientation="h"))
         st.plotly_chart(fig, use_container_width=True)
         spread = curve.get(10.0, float("nan")) - curve.get(2.0, float("nan"))
