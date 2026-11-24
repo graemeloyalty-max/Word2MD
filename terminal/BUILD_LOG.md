@@ -132,3 +132,8 @@ editable DCF, peer multiples, a quality score and a country/currency overlay. SE
   risk-free *placeholder* and a 0.70 beta. Check the risk-free rate before trusting it.
 
 **Not yet verified:** SEC EDGAR live (network blocked; parsing tested on a fixture). The toggle shows a clear message instead of failing.
+
+### Step 9: Repository fix found while committing
+- The `.gitignore` rule `data/` was meant for the local cache folder, but it also matched the code folder `gterm/data/`.
+  **The data adapter layer had been missing from the Phase 1 commits**, so a fresh clone would not have run.
+- Fixed by changing the rule to `/data/`. Verified by cloning the pushed branch into a clean folder and running all 40 tests there.
