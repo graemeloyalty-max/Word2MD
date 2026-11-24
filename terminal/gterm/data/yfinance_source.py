@@ -64,18 +64,17 @@ class YFinanceSource(DataSource):
         price = float(frame["Close"].iloc[-1])
         prev = float(frame["Close"].iloc[-2]) if len(frame) > 1 else price
         name, exchange, qtype = symbol, "", "EQUITY"
-        try:
-            info = t.info or {}
-            name = info.get("longName") or info.get("shortName") or symbol
+        info = self._info(t)  # .info is flaky; history-based values are a fine fallback
+        if info:
+            name = " ".join((info.get("longName") or info.get("shortName") or symbol).split())
             exchange = info.get("fullExchangeName") or info.get("exchange") or ""
             qtype = info.get("quoteType") or qtype
-            # Prefer the live market price when the market is open.
-            if info.get("regularMarketPrice"):
-                price = float(info["regularMarketPrice"])
-            if info.get("regularMarketPreviousClose"):
-                prev = float(info["regularMarketPreviousClose"])
-        except Exception:
-            pass  # .info is flaky; history-based values are a fine fallback
+            # Prefer the live market price when the market is open (never from a stale profile).
+            if not info.get("_stale"):
+                if info.get("regularMarketPrice"):
+                    price = float(info["regularMarketPrice"])
+                if info.get("regularMarketPreviousClose"):
+                    prev = float(info["regularMarketPreviousClose"])
         return Quote(
             symbol=symbol,
             name=name,
@@ -89,11 +88,23 @@ class YFinanceSource(DataSource):
             as_of=hist.as_of,
         )
 
+    PROFILE_TTL_S = 7 * 86400
+
     def _info(self, t) -> dict:
+        """Yahoo's company-profile endpoint is rate-limited ("Invalid Crumb"/401). Keep the last good
+        response for 7 days and fall back to it, marked `_stale`, so names/sectors don't vanish."""
+        from ..core import cache
+
+        key = f"yfinfo|{t.ticker}"
         try:
-            return t.info or {}
+            info = t.info or {}
         except Exception:
-            return {}
+            info = {}
+        if info.get("quoteType"):
+            cache.put(key, info)
+            return info
+        stale = cache.get(key, self.PROFILE_TTL_S)
+        return {**stale, "_stale": True} if stale else {}
 
     def get_fundamentals(self, symbol: str) -> Fundamentals:
         t = self._ticker(symbol)

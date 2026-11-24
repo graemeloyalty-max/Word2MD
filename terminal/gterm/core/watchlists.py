@@ -108,3 +108,71 @@ def seed_defaults() -> None:
     create_watchlist("US large caps", ["AAPL", "MSFT", "NVDA", "JPM", "SPY"])
     create_watchlist("Europe", ["SAP.DE", "ASML.AS", "MC.PA", "NESN.SW", "SHEL.L"])
     create_watchlist("Macro & FX", ["^GSPC", "^STOXX50E", "EURUSD=X", "USDZAR=X", "BTC-USD"])
+
+
+# ---------------------------------------------------------------- portfolios (Phase 3)
+
+def _pf_connect():
+    con = _connect()
+    con.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS portfolio (id INTEGER PRIMARY KEY, name TEXT UNIQUE NOT NULL);
+        CREATE TABLE IF NOT EXISTS holding (
+            portfolio_id INTEGER NOT NULL REFERENCES portfolio(id) ON DELETE CASCADE,
+            symbol TEXT NOT NULL,
+            quantity REAL NOT NULL,
+            cost_price REAL,              -- per share, in the share's trading currency (optional)
+            PRIMARY KEY (portfolio_id, symbol));
+        """
+    )
+    return con
+
+
+def list_portfolios() -> list[str]:
+    with closing(_pf_connect()) as con:
+        return [r[0] for r in con.execute("SELECT name FROM portfolio ORDER BY id")]
+
+
+def save_portfolio(name: str, holdings: list[dict]) -> None:
+    """Replace a portfolio's holdings. Each holding: {symbol, quantity, cost_price (optional)}."""
+    name = name.strip()
+    if not name:
+        raise ValueError("Portfolio name is empty")
+    clean = {}
+    for h in holdings:
+        sym = str(h.get("symbol") or "").strip().upper()
+        qty = h.get("quantity")
+        if not sym or qty is None or (isinstance(qty, float) and qty != qty) or float(qty) == 0:
+            continue
+        cost = h.get("cost_price")
+        cost = None if cost is None or (isinstance(cost, float) and cost != cost) else float(cost)
+        clean[sym] = (float(qty), cost)
+    with closing(_pf_connect()) as con, con:
+        con.execute("INSERT OR IGNORE INTO portfolio(name) VALUES (?)", (name,))
+        pid = con.execute("SELECT id FROM portfolio WHERE name=?", (name,)).fetchone()[0]
+        con.execute("DELETE FROM holding WHERE portfolio_id=?", (pid,))
+        con.executemany("INSERT INTO holding VALUES (?,?,?,?)", [(pid, s, q, c) for s, (q, c) in clean.items()])
+
+
+def get_holdings(name: str) -> list[dict]:
+    with closing(_pf_connect()) as con:
+        row = con.execute("SELECT id FROM portfolio WHERE name=?", (name,)).fetchone()
+        if not row:
+            raise KeyError(name)
+        return [{"symbol": s, "quantity": q, "cost_price": c}
+                for s, q, c in con.execute("SELECT symbol, quantity, cost_price FROM holding WHERE portfolio_id=? ORDER BY rowid", (row[0],))]
+
+
+def delete_portfolio(name: str) -> None:
+    with closing(_pf_connect()) as con, con:
+        con.execute("DELETE FROM portfolio WHERE name=?", (name,))
+
+
+def seed_portfolio() -> None:
+    if list_portfolios():
+        return
+    save_portfolio("Sample global portfolio", [
+        {"symbol": "AAPL", "quantity": 20}, {"symbol": "MSFT", "quantity": 10}, {"symbol": "JPM", "quantity": 15},
+        {"symbol": "SAP.DE", "quantity": 25}, {"symbol": "ASML.AS", "quantity": 5}, {"symbol": "NESN.SW", "quantity": 40},
+        {"symbol": "SHEL.L", "quantity": 150}, {"symbol": "SPY", "quantity": 5},
+    ])

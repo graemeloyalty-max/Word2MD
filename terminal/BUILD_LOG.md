@@ -137,3 +137,50 @@ editable DCF, peer multiples, a quality score and a country/currency overlay. SE
 - The `.gitignore` rule `data/` was meant for the local cache folder, but it also matched the code folder `gterm/data/`.
   **The data adapter layer had been missing from the Phase 1 commits**, so a fresh clone would not have run.
 - Fixed by changing the rule to `/data/`. Verified by cloning the pushed branch into a clean folder and running all 40 tests there.
+
+---
+
+## Phase 3: Portfolio, macro, news and dashboard (24 Nov 2026)
+
+**Goal:** portfolio tools, macro data (FRED, World Bank, IMF, ECB, SARB), news, GDELT events and a dashboard. **Cost:** nothing new.
+
+### Step 1: Network check
+- Every macro and news host was blocked (FRED, World Bank, IMF, ECB, SARB, GDELT, Google News). You were asked to allow them.
+- Tracing a failure showed Yahoo *news* comes from a separate host, `nexus-finance-prod.media.yahoo.com`, which was added to the list.
+- **Decision:** build the portfolio tools first (yfinance only, already allowed), and write each macro/news adapter as a pure
+  parser plus a fetcher, so the parsers could be tested on sample responses while the hosts were blocked.
+
+### Step 2: Portfolio tools
+- `analysis/portfolio.py`: calendar alignment (forward-fill only), position values, volatility, beta, drawdown, Sharpe,
+  correlation, contributions, and attribution by any grouping.
+- `core/portfolio_loader.py`: prices each holding, converts it to the base currency at daily FX, and attaches sector/country/region.
+- Holdings are stored in `data/workspace.sqlite` with an optional cost price. The page has an editable holdings grid, metrics against
+  a benchmark (default URTH, the MSCI World ETF), growth and drawdown charts, allocation pies, attribution by sector and region,
+  and a correlation heatmap.
+- **Problem found live:** Yahoo's company-profile endpoint started refusing requests ("Invalid Crumb", HTTP 401, which is its rate
+  limiting), so names and sectors disappeared. Fixes: (1) the last good profile is kept for 7 days and used when Yahoo refuses
+  (never for prices); (2) the country is inferred from the exchange suffix (.SW → Switzerland, .JO → South Africa, ...).
+- Verified on live data: sample portfolio in ZAR, +13.8% over 1 year; contributions sum exactly to the total.
+
+### Step 3: Macro adapters and page
+- `data/macro.py`: FRED (keyless CSV or JSON API with a key), World Bank, IMF DataMapper (with forecasts), ECB Data Portal
+  (handles its daily/monthly/quarterly/annual date formats), SARB current rates. 12 h cache.
+- `pages/6_Macro.py`: country comparison, policy rates, US and euro yield curves (today vs. earlier, with the 10y−2y spread),
+  SARB, and a series explorer. Each fetch fails on its own with a message naming the blocked host; the page keeps working.
+
+### Step 4: News and GDELT
+- `data/news.py`: Yahoo Finance company news (old and new response formats), Google News RSS, GDELT article list and tone/volume timeline.
+- `pages/7_News_and_Events.py`: company, country/topic and geopolitical tabs, with a coverage map and a tone chart.
+
+### Step 5: Dashboard
+- `Home.py` is now a dashboard of widgets you choose and order (saved in settings): market snapshot, portfolio, watchlist,
+  key rates (US bill/5y/10y live from Yahoo; Fed and ECB from FRED/ECB), headlines, build progress.
+- A stale-module error appeared after adding the new setting: Streamlit reloads page files, but not the `gterm` package. Restarting the
+  app fixed it. **If you pull new code while the app is running, restart it.**
+
+### Step 6: Tests (61 passing, 21 new)
+- Portfolio: holiday alignment never backfills; contributions sum to the return; attribution weights; beta of a 2× levered copy = 2;
+  drawdown; annualised return; region fallbacks; the holdings store; base-currency loading.
+- Parsers on sample responses for FRED (both CSV header styles, "." for missing), World Bank (nulls, error message), IMF, ECB (daily
+  and monthly), SARB (field-name case), RSS (publisher suffix stripped), Yahoo news (both formats), GDELT (articles, timeline);
+  the yield curve picks the right date.

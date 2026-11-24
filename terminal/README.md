@@ -3,7 +3,7 @@
 A personal financial research terminal for global equity evaluation, written from scratch
 in Python and Streamlit. No Fincept Terminal code is used.
 
-**Status: Phase 2 (Equity research core) complete.** See [BUILD_LOG.md](BUILD_LOG.md) for how it was built, step by step.
+**Status: Phase 3 (Portfolio, macro, news, dashboard) built.** Macro and news sources still need live verification; see BUILD_LOG.md. See [BUILD_LOG.md](BUILD_LOG.md) for how it was built, step by step.
 
 ## Run it
 
@@ -11,7 +11,7 @@ in Python and Streamlit. No Fincept Terminal code is used.
 cd terminal
 pip install -r requirements.txt
 streamlit run Home.py        # opens http://localhost:8501
-python -m pytest -q          # 40 tests
+python -m pytest -q          # 61 tests
 ```
 
 You can also use GitHub Codespaces: open the repo in a Codespace and the app installs and starts by itself (`.devcontainer/`).
@@ -32,18 +32,25 @@ Symbols follow Yahoo conventions: `AAPL`, `SAP.DE` (Xetra), `ASML.AS` (Amsterdam
 
 ```
 terminal/
-  Home.py                    home page + market snapshot
+  Home.py                    customisable dashboard
   pages/                     one file per page (Streamlit multi-page)
     1_Quotes_and_Charts.py
     2_Watchlists.py
     3_Settings.py
     4_Equity_Research.py
+    5_Portfolio.py
+    6_Macro.py
+    7_News_and_Events.py
   gterm/
     data/base.py             the DataSource interface every source implements
     data/yfinance_source.py  yfinance adapter
     data/demo_source.py      offline synthetic adapter
     data/registry.py         picks the source and wraps it in the cache
     data/edgar_source.py     SEC EDGAR 10-K history for US filers
+    data/macro.py            FRED, World Bank, IMF, ECB, SARB
+    data/news.py             Yahoo news, Google News RSS, GDELT
+    analysis/portfolio.py    returns, risk, correlation, attribution
+    core/portfolio_loader.py prices + FX + profiles for a portfolio
     analysis/dcf.py          DCF, sensitivity grid, reverse DCF
     analysis/multiples.py    peer groups and implied prices
     analysis/quality.py      quality score
@@ -118,11 +125,35 @@ between them is the currency effect.
 **Inputs you must check before relying on a valuation.** Only the USD risk-free rate is live (^TNX). The EUR, GBP,
 CHF and ZAR risk-free rates, the equity risk premium and the country risk premiums are labelled placeholders on the page.
 
+## Phase 3, in plain English
+
+**Portfolio** (`analysis/portfolio.py`). Your current holdings are priced over the period and converted to your
+base currency (ZAR, USD or EUR) at each day's FX rate, so currency moves are part of the return. Shares on
+different exchanges trade on different days; prices are carried forward over another market's holidays, never backward.
+- *Volatility*: daily return standard deviation × √252.
+- *Beta*: how much the portfolio moves when the benchmark moves 1%, measured in the same currency.
+- *Max drawdown*: the worst fall from a peak.
+- *Correlation*: −1 to +1; near +1 means two holdings add little diversification.
+- *Attribution*: each holding's value change ÷ the starting portfolio value. These add up exactly to the total return,
+  so they can be summed by sector or region.
+- The period return uses today's quantities held constant ("how has what I own behaved?"), not your actual trading history.
+
+**Macro** (`data/macro.py`). Annual country data from the World Bank (actuals) or the IMF World Economic Outlook
+(including forecasts, drawn dashed); policy rates from FRED and the ECB; US Treasury and euro AAA yield curves
+(today vs. a chosen earlier date); SARB's current rates; and any FRED, World Bank or ECB series by code.
+FRED works without a key via its public CSV; add `FRED_API_KEY` to use the JSON API instead.
+
+**News & events** (`data/news.py`). Company news from Yahoo Finance plus a Google News search; any topic or country through
+Google News; geopolitical events from GDELT. The GDELT map counts articles by the publisher's country, and the timeline shows
+the average tone of coverage (below 0 = negative).
+
+**Dashboard** (`Home.py`). Choose and order widgets: market snapshot, portfolio, watchlist, key rates, headlines, build progress.
+
 ## Phase plan
 
 1. **Foundation** ✅: shell, data layer, cache, Settings, quotes, charts, watchlists
 2. **Equity research core** ✅: DCF, multiples, quality score, country/currency overlay (yfinance + SEC EDGAR)
-3. Portfolio and macro
+3. **Portfolio, macro, news and dashboard** ✅
 4. Quant lab
 5. Agentic research (needs Anthropic API key)
 6. Everything else
