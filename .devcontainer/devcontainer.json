@@ -1,0 +1,8 @@
+{
+  "name": "Global Equity Terminal",
+  "image": "mcr.microsoft.com/devcontainers/python:3.11",
+  "postCreateCommand": "pip install -r terminal/requirements.txt",
+  "forwardPorts": [8501],
+  "portsAttributes": { "8501": { "label": "Terminal", "onAutoForward": "openBrowser" } },
+  "postAttachCommand": "cd terminal && streamlit run Home.py --server.headless true"
+}
