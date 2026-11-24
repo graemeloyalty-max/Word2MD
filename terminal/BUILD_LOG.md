@@ -59,4 +59,14 @@ charts and watchlists. **Cost:** nothing beyond Claude Pro.
 - `.devcontainer/` so GitHub Codespaces installs and launches the app automatically.
 - README with plain-English explanations of every model (ground rule 5).
 
-**Not yet verified:** live yfinance data inside the sandbox (network blocked). Run it locally or in Codespaces to see real prices.
+**Live data:** verified in Step 7.
+
+### Step 7: Live-data verification (after network access was granted)
+- You added the six Yahoo Finance domains to the cloud environment's allowed list. `auto` mode then switched to yfinance by itself.
+- Checked real quotes for AAPL, SAP.DE, ASML.AS, SHEL.L, NESN.SW, ^GSPC, USD/ZAR and BTC-USD; symbol search works ("siemens" → SIE.DE, ...).
+- **Bug found by real data:** Yahoo prices London stocks in pence (`GBp`) and JSE stocks in cents (`ZAc`). The adapter
+  upper-cased the currency code, turning `GBp` into `GBP`, so Shell's 3,552p was read as £3,552 and converted to $4,660 instead of $46.60.
+  The fix keeps Yahoo's case for minor units. A regression test was added (19 tests now). Shell now converts to $46.60 and Naspers (NPN.JO) to $36.44.
+- UI: the currency moved into the "Last (GBp)" label so long prices aren't cut off.
+- All pages loaded in a browser on live data with no errors.
+- Note: the watchlist comparison chart shows NVDA −14% three sessions ago, then a rebound. That is the data Yahoo returned, not a charting bug.

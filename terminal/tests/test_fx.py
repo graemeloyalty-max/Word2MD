@@ -40,3 +40,17 @@ def test_pence_to_usd_divides_then_converts():
     prices = pd.Series([2600.0], index=pd.to_datetime(["2024-01-02"]))
     out, _ = fx.convert_series(prices, "GBp", "USD", fetch=fake_fetch({"2024-01-02": 1.25}))
     assert out.iloc[0] == pytest.approx(32.5)
+
+
+def test_yfinance_adapter_keeps_minor_unit_case():
+    # Regression: upper-casing "GBp" to "GBP" made pence look like pounds (100x error).
+    from gterm.data.yfinance_source import YFinanceSource
+
+    class FakeTicker:
+        def __init__(self, ccy):
+            self.fast_info = {"currency": ccy}
+
+    src = YFinanceSource()
+    assert src._currency(FakeTicker("GBp")) == "GBp"
+    assert src._currency(FakeTicker("ZAc")) == "ZAc"
+    assert src._currency(FakeTicker("usd")) == "USD"

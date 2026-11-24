@@ -51,7 +51,7 @@ if view_ccy != "Native":
 # ---- headline ------------------------------------------------------------
 st.subheader(f"{quote.name}  ·  {quote.symbol}")
 m = st.columns(5)
-m[0].metric("Last", ui.fmt_price(quote.price, quote.currency), f"{quote.change:+,.2f} ({quote.change_pct:+.2f}%)")
+m[0].metric(f"Last ({quote.currency})", ui.fmt_price(quote.price), f"{quote.change:+,.2f} ({quote.change_pct:+.2f}%)")
 m[1].metric(f"Return ({period})", f"{indicators.total_return(df['Close']) * 100:+.1f}%")
 per_year = {"1d": 252, "1wk": 52, "1mo": 12}[interval]
 m[2].metric("Volatility (ann.)", f"{indicators.annualised_volatility(df['Close'], per_year) * 100:.1f}%")
