@@ -70,3 +70,65 @@ charts and watchlists. **Cost:** nothing beyond Claude Pro.
 - UI: the currency moved into the "Last (GBp)" label so long prices aren't cut off.
 - All pages loaded in a browser on live data with no errors.
 - Note: the watchlist comparison chart shows NVDA −14% three sessions ago, then a rebound. That is the data Yahoo returned, not a charting bug.
+
+---
+
+## Phase 2: Equity research core (24 Nov 2026)
+
+**Goal:** an equity research page for any US or European ticker with five parts: normalised statements, an
+editable DCF, peer multiples, a quality score and a country/currency overlay. SEC EDGAR provides longer US history.
+**Cost:** nothing new.
+
+### Step 1: Explore the data
+- yfinance returns 4–5 fiscal years of income statement, balance sheet and cash flow for both US and European companies.
+- The line names differ by accounting standard. SAP (IFRS) reports `Interest Paid Cfo`, `Interest Received Cfi` and
+  `Purchase Of Intangibles`; Apple (US GAAP) has none of these.
+- **SEC EDGAR is blocked** by the sandbox network (data.sec.gov, www.sec.gov), as Yahoo was.
+
+### Step 2: Statement normaliser (`gterm/core/statements.py`)
+- Maps every source's labels to ~30 standard lines (revenue, EBIT, FCF, net debt, ...), oldest year → newest.
+- IFRS → US GAAP-style adjustments: interest paid/received moved into operating cash flow, capitalised development
+  (intangibles) counted as capex, lease liabilities in debt. Each adjustment is recorded and shown on the page.
+
+### Step 3: Data layer
+- `Fundamentals` and `KeyStats` added to the adapter interface; implemented for yfinance and demo (demo statements use
+  IFRS-style labels for European names so the normaliser is exercised offline).
+- `edgar_source.py`: reads EDGAR company facts and keeps only full-year 10-K values. A restated figure replaces
+  the original, quarters filed inside 10-Ks are dropped, and only years *older* than yfinance's are added.
+- SEC requires a User-Agent with your name and email. It's a Settings field and is never hard-coded.
+- Fundamentals and key stats are cached for 24 h.
+
+### Step 4: Models (`gterm/analysis/`)
+- `dcf.py`: FCFF DCF with a growth fade, CAPM + country-risk cost of equity, WACC, an equity bridge, a 5×5 sensitivity grid, and a reverse DCF (bisection).
+- `multiples.py`: default sector × region peer lists (11 sectors, US/Europe) and implied prices at peer medians.
+- `quality.py`: ROIC, margin variation, leverage and cash conversion, each scored 0–100.
+- `country.py`: approximate CRPs and risk-free placeholders, all labelled as such on screen.
+
+### Step 5: Page (`pages/4_Equity_Research.py`)
+- A summary strip (price, DCF value, peer value, quality) above five tabs. Every assumption is an input with its default's source written underneath.
+- Three currencies are handled at once: statement currency (Shell reports in USD), trading currency (GBp) and your base currency.
+
+### Step 6: Bugs and edge cases found with live data
+- **Shell's beta from yfinance is −0.25.** The input rejected it and the page crashed. It now accepts the value, but defaults to 1.0 when the reported beta is below 0.3, and says why.
+- **JPMorgan's DCF came out at −$1,481 per share** (banks' "free cash flow" is meaningless). Banks/insurers now show
+  "n/a" for DCF and quality, with an explanation, and a negative-FCF DCF never reaches the summary.
+- The base-currency caption said "same currency" when it had converted GBp→USD. Fixed.
+- Peer names had stray padding from Yahoo. Fixed.
+- Layout: chart legends overlapped axis titles, and a metric label was truncated. Fixed.
+
+### Step 7: Tests (40 passing, 21 new)
+- DCF checked against closed-form answers: a zero-growth perpetuity = FCF/r; constant growth = Gordon formula; the equity bridge;
+  WACC weights and tax shield; λ-scaled CRP; the growth fade; a reverse DCF round trip; sensitivity moves in the right direction.
+- Normaliser: IFRS adjustments applied, US GAAP left alone. Quality on hand-built statements gives exactly 100.
+- Multiples: implied prices for equity and EV multiples; the median ignores an outlier.
+- EDGAR parsing on a fixture: quarters dropped, restatements win, 10-Qs ignored, only older years merged.
+- FX: pence → USD at the latest rate.
+
+### Step 8: End-to-end on live data
+- SAP.DE, AAPL, SHEL.L and JPM: all five tabs load with no exceptions.
+- Results at default assumptions (24 Nov 2026): SAP DCF €277 vs €190 price, peers €149, quality 87;
+  Apple DCF $176 vs $353, peers $175, quality 99; Shell DCF 2,516p vs 3,552p, peers 4,012p; JPM DCF n/a (bank).
+- **Note on SAP:** the high DCF value comes mostly from a low WACC (5.8%), which in turn comes from the 2.7% EUR
+  risk-free *placeholder* and a 0.70 beta. Check the risk-free rate before trusting it.
+
+**Not yet verified:** SEC EDGAR live (network blocked; parsing tested on a fixture). The toggle shows a clear message instead of failing.

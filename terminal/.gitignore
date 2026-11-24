@@ -1,5 +1,5 @@
 # Secrets and local data never go into git
 .env
-data/
+/data/
 __pycache__/
 .pytest_cache/

@@ -65,3 +65,14 @@ def test_api_keys_go_to_env_file():
     assert config.key_status()["FRED_API_KEY"]
     with pytest.raises(ValueError):
         config.set_api_key("NOT_A_KEY", "x")
+
+
+def test_demo_fundamentals_and_key_stats():
+    f = registry.fundamentals("SAP.DE")
+    assert f.financial_currency == "EUR" and f.country == "Germany"
+    assert "free_cash_flow" in f.statements["cashflow"].index
+    assert any("Interest paid" in n for n in f.adjustments)  # IFRS path exercised
+    ks = registry.key_stats("SAP.DE")
+    assert ks.pe > 0 and ks.ev_ebitda > 0
+    with pytest.raises(DataSourceError):
+        registry.fundamentals("^GSPC")  # an index has no statements

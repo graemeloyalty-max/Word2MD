@@ -43,3 +43,21 @@ def convert_series(series: pd.Series, from_ccy: str, to_ccy: str, period: str = 
         raise ValueError(f"No FX history for {major}/{to_ccy}")
     rate = rate.bfill()
     return s * rate, f"converted {from_ccy}->{to_ccy} at daily {pair_symbol(major, to_ccy)} close"
+
+
+def latest_rate(from_ccy: str, to_ccy: str, fetch=None) -> tuple[float, str]:
+    """Latest FX rate between two currencies (minor units handled), plus a description.
+
+    Returns the multiplier: amount_in_to = amount_in_from * rate.
+    """
+    f_major, f_div = normalise_currency(from_ccy)
+    t_major, t_div = normalise_currency(to_ccy)
+    rate = t_div / f_div
+    if f_major == t_major:
+        return rate, "same currency"
+    if fetch is None:
+        from ..data import registry
+
+        fetch = lambda sym, per: registry.prices(sym, per, "1d")  # noqa: E731
+    h = fetch(pair_symbol(f_major, t_major), "1mo")
+    return rate * h.last_close, f"{pair_symbol(f_major, t_major)} {h.last_close:.4f} on {h.last_date:%Y-%m-%d} ({h.source})"

@@ -3,7 +3,7 @@
 A personal financial research terminal for global equity evaluation, written from scratch
 in Python and Streamlit. No Fincept Terminal code is used.
 
-**Status: Phase 1 (Foundation) complete.** See [BUILD_LOG.md](BUILD_LOG.md) for how it was built, step by step.
+**Status: Phase 2 (Equity research core) complete.** See [BUILD_LOG.md](BUILD_LOG.md) for how it was built, step by step.
 
 ## Run it
 
@@ -11,7 +11,7 @@ in Python and Streamlit. No Fincept Terminal code is used.
 cd terminal
 pip install -r requirements.txt
 streamlit run Home.py        # opens http://localhost:8501
-python -m pytest -q          # 19 tests
+python -m pytest -q          # 40 tests
 ```
 
 You can also use GitHub Codespaces: open the repo in a Codespace and the app installs and starts by itself (`.devcontainer/`).
@@ -37,11 +37,18 @@ terminal/
     1_Quotes_and_Charts.py
     2_Watchlists.py
     3_Settings.py
+    4_Equity_Research.py
   gterm/
     data/base.py             the DataSource interface every source implements
     data/yfinance_source.py  yfinance adapter
     data/demo_source.py      offline synthetic adapter
     data/registry.py         picks the source and wraps it in the cache
+    data/edgar_source.py     SEC EDGAR 10-K history for US filers
+    analysis/dcf.py          DCF, sensitivity grid, reverse DCF
+    analysis/multiples.py    peer groups and implied prices
+    analysis/quality.py      quality score
+    analysis/country.py      country risk premiums, risk-free defaults
+    core/statements.py       normalises statements across sources and accounting standards
     core/cache.py            SQLite cache (data/cache.sqlite)
     core/config.py           settings.json + .env API keys
     core/fx.py               historical-rate currency conversion
@@ -77,10 +84,44 @@ earlier rate is used, never a future one. London prices quoted in pence (GBp) ar
 - *Annualised volatility*: the standard deviation of daily log returns × √252.
 - *Max drawdown*: the worst fall from a previous peak during the period.
 
+## Phase 2 models, in plain English
+
+**Statement normalisation** (`core/statements.py`). Every company's statements are mapped onto the same
+standard lines. Where IFRS lets a company classify something differently from US GAAP, it is moved so both look alike:
+interest paid or received is put in operating cash flow; capitalised development costs (purchases of intangibles) count as capex;
+lease liabilities are part of debt. The adjustments made for each company are listed on its Statements tab.
+
+**DCF** (`analysis/dcf.py`). Start from the latest free cash flow (operating cash flow − capex). Grow it at your
+chosen rate for 5 years, then fade the growth in a straight line down to the terminal rate. After the projection, assume
+it grows at the terminal rate for ever (Gordon growth). Discount all of it at the WACC. Then subtract debt and minorities,
+add cash, and divide by shares.
+- Cost of equity = risk-free + beta × equity risk premium + λ × country risk premium.
+- WACC weights equity at market value and debt at book value, and gives debt its tax shield.
+- The **sensitivity grid** shows the value for WACC ±1% and terminal growth ±1%.
+- The **reverse DCF** finds the growth rate the market price implies: if that number looks unrealistic, so does the price.
+- Not used for banks and insurers, whose debt is an operating input, not financing.
+
+**Peer multiples** (`analysis/multiples.py`). Compare P/E, EV/EBITDA, P/B and EV/Sales with a default group of
+same-sector peers in the same region (US or Europe); edit the group freely. Each multiple implies a share price at the
+peer *median*. Medians ignore one-off extremes. EV-based prices hold net debt constant. The headline figure is the
+median of the four implied prices.
+
+**Quality score** (`analysis/quality.py`). Four measures, each scored 0–100 on a straight line, then averaged:
+ROIC (0% → 0, 20% → 100), margin variation (50% → 0, 5% → 100), net debt/EBITDA (4× → 0, net cash → 100) and
+cash conversion, FCF/net income (30% → 0, 100% → 100).
+
+**Country & currency overlay** (`analysis/country.py`). A country risk premium for the company's home country is added
+to its cost of equity, scaled by λ (its exposure to that country). The defaults are approximate, rating-based figures and are
+editable. The share's 1/3/5-year return is shown in its own currency and in your base currency, and the gap
+between them is the currency effect.
+
+**Inputs you must check before relying on a valuation.** Only the USD risk-free rate is live (^TNX). The EUR, GBP,
+CHF and ZAR risk-free rates, the equity risk premium and the country risk premiums are labelled placeholders on the page.
+
 ## Phase plan
 
 1. **Foundation** ✅: shell, data layer, cache, Settings, quotes, charts, watchlists
-2. Equity research core: DCF, multiples, quality score, country/currency overlay (yfinance + SEC EDGAR)
+2. **Equity research core** ✅: DCF, multiples, quality score, country/currency overlay (yfinance + SEC EDGAR)
 3. Portfolio and macro
 4. Quant lab
 5. Agentic research (needs Anthropic API key)

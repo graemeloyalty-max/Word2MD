@@ -11,8 +11,7 @@ watchlists.seed_defaults()
 
 st.markdown(
     "A personal research terminal for global equity evaluation. "
-    "**Phase 1: Foundation** covers the app shell, the data adapter layer, the local cache, "
-    "Settings, global quotes and charts, and watchlists."
+    "**Phase 1** built the foundation; **Phase 2** adds the equity research core."
 )
 
 st.subheader("Market snapshot")
@@ -35,7 +34,7 @@ st.markdown(
 | Markets | **Quotes & Charts**: any equity, ETF, index, FX pair or crypto; candlesticks, SMA/EMA/Bollinger, RSI, MACD, base-currency view | ✅ Phase 1 |
 | Markets | **Watchlists**: saved lists, quote table, price alerts | ✅ Phase 1 |
 | Workspace | **Settings**: API keys (.env), base currency, data source, cache | ✅ Phase 1 |
-| Research | Equity research page (DCF, multiples, quality, country overlay) | Phase 2 |
+| Research | **Equity Research**: normalised statements, DCF with reverse DCF and sensitivity, peer multiples, quality score, country & currency overlay | ✅ Phase 2 |
 | Portfolio & Macro | Portfolio tools, FRED/World Bank/IMF/ECB/SARB, news, GDELT, dashboard | Phase 3 |
 | Quant lab | Signals, backtests, sweeps, vol surface | Phase 4 |
 | Agentic research | AI chat, agents, reports | Phase 5 |

@@ -19,8 +19,14 @@ source = c2.selectbox(
     index=source_options.index(settings["data_source"]),
     help="auto = yfinance when reachable, otherwise the offline demo source.",
 )
+sec_ua = st.text_input(
+    "SEC EDGAR User-Agent (for longer US statement history)",
+    settings.get("sec_user_agent", ""),
+    placeholder="Your Name your.email@example.com",
+    help="The SEC requires every request to name you and give a contact email. Stored only in data/settings.json on this machine.",
+)
 if st.button("Save preferences", type="primary"):
-    config.save_settings({"base_currency": base, "data_source": source})
+    config.save_settings({"base_currency": base, "data_source": source, "sec_user_agent": sec_ua.strip()})
     registry._yfinance_reachable.cache_clear()
     st.success("Saved.")
     st.rerun()

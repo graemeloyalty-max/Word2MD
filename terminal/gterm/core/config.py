@@ -29,7 +29,7 @@ API_KEYS = {
     "ALPACA_SECRET_KEY": ("Paper trading", "Phase 6"),
 }
 
-DEFAULTS = {"base_currency": "USD", "data_source": "auto"}
+DEFAULTS = {"base_currency": "USD", "data_source": "auto", "sec_user_agent": ""}
 
 
 def _ensure_dirs():
