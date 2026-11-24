@@ -3,7 +3,7 @@
 A personal financial research terminal for global equity evaluation, written from scratch
 in Python and Streamlit. No Fincept Terminal code is used.
 
-**Status: Phase 3 (Portfolio, macro, news, dashboard) complete.** See BUILD_LOG.md for how it was built. See [BUILD_LOG.md](BUILD_LOG.md) for how it was built, step by step.
+**Status: Phase 4 (Quant lab) complete.** See BUILD_LOG.md for how it was built. See [BUILD_LOG.md](BUILD_LOG.md) for how it was built, step by step.
 
 ## Run it
 
@@ -11,7 +11,7 @@ in Python and Streamlit. No Fincept Terminal code is used.
 cd terminal
 pip install -r requirements.txt
 streamlit run Home.py        # opens http://localhost:8501
-python -m pytest -q          # 62 tests
+python -m pytest -q          # 93 tests
 ```
 
 You can also use GitHub Codespaces: open the repo in a Codespace and the app installs and starts by itself (`.devcontainer/`).
@@ -41,6 +41,8 @@ terminal/
     5_Portfolio.py
     6_Macro.py
     7_News_and_Events.py
+    8_Quant_Lab.py
+    9_Volatility_Surface.py
   gterm/
     data/base.py             the DataSource interface every source implements
     data/yfinance_source.py  yfinance adapter
@@ -50,6 +52,13 @@ terminal/
     data/macro.py            FRED, World Bank, IMF, ECB, SARB
     data/news.py             Yahoo news, Google News RSS, GDELT
     analysis/portfolio.py    returns, risk, correlation, attribution
+    analysis/options.py      Black-Scholes, Greeks, implied vol, vol surface
+    data/deribit.py          crypto option chains
+    quant/backtest.py        backtesting engine and parameter sweeps
+    quant/strategies.py      buy & hold, equal weight, momentum, trend, inverse vol, factor top group
+    quant/factors.py         factor scores, point-in-time fundamentals, IC, quantile returns
+    quant/metrics.py         CAGR, Sharpe, Sortino, drawdown, Calmar
+    quant/universe.py        loads a universe in one currency
     core/portfolio_loader.py prices + FX + profiles for a portfolio
     analysis/dcf.py          DCF, sensitivity grid, reverse DCF
     analysis/multiples.py    peer groups and implied prices
@@ -149,11 +158,43 @@ the average tone of coverage (below 0 = negative).
 
 **Dashboard** (`Home.py`). Choose and order widgets: market snapshot, portfolio, watchlist, key rates, headlines, build progress.
 
+## Phase 4, in plain English
+
+**Backtester** (`quant/backtest.py`). Give it decisions ("on this date, hold these weights"). It trades each decision
+one day *after* it was made, so it never uses a price it could not have traded at. Weights drift with prices between
+rebalances. Every trade pays a cost (default 10 bps of the value traded). Uninvested money earns 0%.
+
+**Strategies** (`quant/strategies.py`): buy & hold; equal weight rebalanced monthly; **momentum rotation** (hold the
+top N by 12-month return, skipping the last month); **trend following** (invested when the 50-day average is above
+the 200-day); **inverse volatility** (calmer assets get more money); **factor top group** (hold the best-scoring 20%).
+
+**Factor research** (`quant/factors.py`). Each month, rank the universe by a factor (momentum, low volatility, value =
+earnings yield, quality = ROE) and check whether the ranking predicted next month's returns:
+- the **information coefficient** (rank correlation; meaningful above about 0.03–0.05 with a t-stat above 2);
+- **quantile returns** (do top-ranked stocks beat bottom-ranked ones?).
+
+**Point-in-time rule**: annual results only count as known 90 days (editable) after the fiscal year end.
+
+**Parameter sweep**: runs a strategy across a grid of settings and shows a heatmap. Prefer areas where neighbouring
+settings also work, not the single best cell, which may just be luck (overfitting).
+
+**Strategy arena**: several strategies side by side, with CAGR, volatility, Sharpe, Sortino, max drawdown, Calmar,
+hit rate, turnover and costs.
+
+**Volatility surface** (`analysis/options.py`). Implied volatility is computed from option mid prices (Black-Scholes,
+solved by bisection) for out-of-the-money options, then shown as a 3D surface, a smile per expiry and an
+at-the-money term structure. US options come from Yahoo; BTC/ETH from Deribit, using its mark IV when prices are unusable.
+
+**Limits you must keep in mind:**
+- **Survivorship bias**: the universe is today's companies, with no delisted firms, so results look better than reality.
+- Fundamentals cover about 4 years, so value and quality tests are short.
+- Market value uses today's share count throughout.
+
 ## Phase plan
 
 1. **Foundation** ✅: shell, data layer, cache, Settings, quotes, charts, watchlists
 2. **Equity research core** ✅: DCF, multiples, quality score, country/currency overlay (yfinance + SEC EDGAR)
 3. **Portfolio, macro, news and dashboard** ✅
-4. Quant lab
+4. **Quant lab** ✅
 5. Agentic research (needs Anthropic API key)
 6. Everything else

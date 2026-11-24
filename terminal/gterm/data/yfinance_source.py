@@ -165,6 +165,37 @@ class YFinanceSource(DataSource):
             as_of=datetime.now(timezone.utc),
         )
 
+    def get_options_chain(self, symbol: str, max_expiries: int = 12) -> tuple[pd.DataFrame, float, str]:
+        """All calls and puts for the next `max_expiries` expiries. Returns (chain, spot, currency)."""
+        t = self._ticker(symbol)
+        try:
+            expiries = list(t.options)
+            if len(expiries) > max_expiries:  # spread the choice across the whole range, not just the next few weeks
+                import numpy as np
+
+                idx = sorted(set(np.linspace(0, len(expiries) - 1, max_expiries).round().astype(int)))
+                expiries = [expiries[i] for i in idx]
+        except Exception as exc:
+            raise DataSourceError(f"yfinance has no options for {symbol}: {exc}") from exc
+        if not expiries:
+            raise DataSourceError(f"No listed options for {symbol} on Yahoo (mostly US-listed names have them).")
+        frames = []
+        for e in expiries:
+            try:
+                oc = t.option_chain(e)
+            except Exception:
+                continue
+            for kind, df in (("call", oc.calls), ("put", oc.puts)):
+                frames.append(pd.DataFrame({
+                    # US equity options stop trading at 16:00 New York time (about 21:00 UTC) on expiry day.
+                    "expiry": pd.Timestamp(e) + pd.Timedelta(hours=21), "strike": df["strike"], "type": kind,
+                    "bid": df["bid"], "ask": df["ask"], "last": df["lastPrice"], "volume": df["volume"],
+                    "open_interest": df["openInterest"], "yahoo_iv": df["impliedVolatility"]}))
+        if not frames:
+            raise DataSourceError(f"Could not load any option chains for {symbol}")
+        spot = self.get_prices(symbol, "5d").last_close
+        return pd.concat(frames, ignore_index=True), spot, self._currency(t)
+
     def search(self, query: str) -> list[dict]:
         try:
             import yfinance as yf

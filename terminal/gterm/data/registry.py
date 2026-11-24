@@ -111,3 +111,31 @@ def risk_free_usd() -> tuple[float, str] | None:
         return h.last_close / 100.0, f"US 10y Treasury (^TNX) {h.last_close:.2f}% on {h.last_date:%Y-%m-%d}, {h.source}"
     except DataSourceError:
         return None
+
+
+def options_chain(symbol: str, max_expiries: int = 12):
+    """(chain, spot, currency). Crypto 'BTC'/'ETH' via Deribit, everything else via the active source."""
+    from . import deribit
+
+    symbol = symbol.strip().upper()
+    if symbol in ("BTC", "ETH"):
+        return deribit.options_chain(symbol)
+    if active_source_name() == "demo":
+        raise DataSourceError("The demo source has no options data.")
+    key = f"options|{symbol}|{max_expiries}"
+    if (hit := cache.get(key, 15 * 60)) is not None:
+        return hit
+    res = get_source().get_options_chain(symbol, max_expiries)
+    cache.put(key, res)
+    return res
+
+
+def risk_free_usd_short() -> tuple[float, str] | None:
+    """Live US 13-week T-bill yield (^IRX, percent): the right rate for options, which mostly mature within a year."""
+    if active_source_name() == "demo":
+        return None
+    try:
+        h = prices("^IRX", "1mo", "1d")
+        return h.last_close / 100.0, f"US 13-week T-bill (^IRX) {h.last_close:.2f}% on {h.last_date:%Y-%m-%d}, {h.source}"
+    except DataSourceError:
+        return None

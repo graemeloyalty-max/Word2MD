@@ -206,3 +206,56 @@ editable DCF, peer multiples, a quality score and a country/currency overlay. SE
 - All Macro tabs (countries, policy rates, curves, SARB, explorer) and News tabs load in a browser with no exceptions.
 
 **Phase 3 status:** complete. GDELT's map and tone chart are verified only on sample responses (blocked from the sandbox by GDELT itself).
+
+---
+
+## Phase 4: Quant lab (24 Nov 2026)
+
+**Goal:** signal research, a backtesting engine, parameter sweeps, a strategy arena, point-in-time handling, and a
+volatility surface on free options data. **Cost:** nothing new.
+
+### Step 1: Data check
+- yfinance option chains work (SPY: 29 expiries, bids/asks/IV).
+- **Deribit (crypto options) is blocked**; you were asked to allow `www.deribit.com`. Crypto options are built and tested on a sample response.
+
+### Step 2: Backtester (`quant/backtest.py`, `quant/metrics.py`, `quant/strategies.py`)
+- A day-by-day simulation with drifting weights, an execution lag (default 1 day: decide at today's close, trade at tomorrow's),
+  costs on turnover, and cash at 0%.
+- Strategies: buy & hold, equal weight, momentum rotation, SMA trend following, inverse volatility, factor top group; 2-D parameter sweep.
+- Tests prove the engine is honest:
+  - a decision made on the day of a +100% jump does not capture it;
+  - lag 0 vs lag 1 differ exactly as expected;
+  - costs equal turnover × bps; weights drift correctly; cash earns 0;
+  - momentum uses only past data; the SMA strategy exits in downtrends; inverse vol favours the calm asset.
+
+### Step 3: Factor research with point-in-time data (`quant/factors.py`, `quant/universe.py`)
+- Momentum (12-1), low volatility, value (earnings yield) and quality (ROE). Fundamentals are lagged 90 days past the fiscal year end.
+- IC (Spearman), t-stat and quantile returns. All prices are converted to one currency at daily FX.
+- Default universe: 39 US + European large caps. `ROG.SW` (Roche) was removed: Yahoo no longer returns data for it.
+- Live results, 2021–2026, in USD:
+  - momentum IC +0.015 (t 0.4, no signal);
+  - low volatility IC −0.087 (t −2.1: the volatile stocks *won*, matching the tech-led market of those years);
+  - value and quality: no significant signal over the ~44 months point-in-time data allows.
+
+### Step 4: Volatility surface (`analysis/options.py`, `data/deribit.py`, `pages/9_Volatility_Surface.py`)
+- Black-Scholes-Merton with dividends, all five Greeks, and an implied-vol solver (bisection, rejects prices outside no-arbitrage bounds).
+  The normal distribution comes from `math.erf`, so no scipy is needed.
+- Tests: Hull's textbook example (call 4.76 / put 0.81), put-call parity, IV round trips at 8%/25%/90% vol, Greeks vs. finite differences.
+- Live SPY: 1,355 surface points; our IVs within a median 1.3 vol points of Yahoo's own figures; a clear put skew (55% IV on deep OTM puts vs 16% on calls).
+- **Fixes from the live run:**
+  - the first 12 expiries were all within a month, so expiries are now spread across the full range (term structure to 2029);
+  - the risk-free default for options was the 10-year yield, now the 13-week T-bill (^IRX), which matches option maturities.
+
+### Step 5: Quant Lab page (`pages/8_Quant_Lab.py`)
+- Signal research, Backtest, Parameter sweep and Strategy arena tabs, with a survivorship-bias warning at the top.
+- Arena at default settings (2021–26, USD, 10 bps):
+
+  | Strategy | CAGR | Sharpe | Max drawdown | Annual turnover |
+  |---|---|---|---|---|
+  | Equal-weight buy & hold | 12.5% | 0.97 | −23.7% | – |
+  | Momentum rotation | 17.2% | 0.89 | −26.0% | ~505% |
+  | Trend following | 8.2% | 1.16 | −9.9% | ~200% |
+
+- **Fix:** annual turnover counted the initial purchase (buy & hold showed 20%/yr); it now measures ongoing trading only.
+
+### Step 6: Tests: 93 passing (31 new). All Quant Lab tabs and the surface page load in a browser on live data with no exceptions.

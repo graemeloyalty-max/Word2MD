@@ -35,7 +35,7 @@ DEFAULT_PEERS = {
     "Consumer Defensive": {"US": ["PG", "KO", "PEP", "WMT", "COST", "MDLZ", "CL"],
                            "Europe": ["NESN.SW", "ULVR.L", "OR.PA", "BN.PA", "DGE.L", "ABI.BR", "HEIA.AS"]},
     "Healthcare": {"US": ["JNJ", "LLY", "UNH", "PFE", "MRK", "ABBV", "TMO"],
-                   "Europe": ["NOVO-B.CO", "ROG.SW", "NOVN.SW", "AZN.L", "SAN.PA", "GSK.L", "BAYN.DE"]},
+                   "Europe": ["NOVO-B.CO", "NOVN.SW", "AZN.L", "SAN.PA", "GSK.L", "BAYN.DE"]},
     "Financial Services": {"US": ["JPM", "BAC", "WFC", "C", "GS", "MS", "BLK"],
                            "Europe": ["HSBA.L", "BNP.PA", "SAN.MC", "ALV.DE", "INGA.AS", "UBSG.SW", "ZURN.SW"]},
     "Industrials": {"US": ["GE", "CAT", "HON", "UNP", "RTX", "DE", "LMT"],
