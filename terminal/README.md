@@ -11,7 +11,7 @@ in Python and Streamlit. No Fincept Terminal code is used.
 cd terminal
 pip install -r requirements.txt
 streamlit run Home.py        # opens http://localhost:8501
-python -m pytest -q          # 104 tests
+python -m pytest -q          # 115 tests
 ```
 
 You can also use GitHub Codespaces: open the repo in a Codespace and the app installs and starts by itself (`.devcontainer/`).
@@ -63,6 +63,8 @@ terminal/
     ai/providers.py          Gemini (Google AI Studio) and Groq adapters
     ai/tools.py              the terminal's functions as AI tools (cited)
     ai/agent.py              ask → run tools → answer loop
+    ai/team.py               planner → specialists → editor research team
+    reports.py               save notes, export Word / PDF / Markdown with sources
     core/portfolio_loader.py prices + FX + profiles for a portfolio
     analysis/dcf.py          DCF, sensitivity grid, reverse DCF
     analysis/multiples.py    peer groups and implied prices
@@ -202,6 +204,13 @@ model must cite those. Providers are pluggable like data sources: **Google AI St
 (`GEMINI_API_KEY`, `GROQ_API_KEY` in Settings). Defaults are the models verified with the tools: `gemini-3.5-flash` and
 `openai/gpt-oss-120b`. Free tiers have rate limits; busy errors are retried automatically. Treat the model's *reasoning* with
 care: in testing, one model quoted correct numbers but drew the wrong conclusion from them.
+
+**Research team** (AI Research page → Research team): a planner splits your question, four specialists (fundamentals,
+valuation, macro, news) research their part with only their own tools, and an editor with no tools writes the note from
+their notes and a fact sheet of raw tool results. It checks conclusions against the numbers and adds no new figures. Each
+agent's provider, model, tools and instructions are set in the Agents tab. Tip: Groq's free tier allows ~8,000 tokens a
+minute, so spread specialists across Gemini and Groq; short rate-limit waits are handled automatically. Every run is saved
+in the Reports tab and exports to Word, PDF or Markdown with a sources appendix.
 
 ## Phase plan
 

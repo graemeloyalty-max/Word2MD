@@ -140,3 +140,47 @@ def test_default_model_prefers_verified_models():
     assert GroqProvider().default_model(["allam-2-7b", "openai/gpt-oss-120b"]) == "openai/gpt-oss-120b"
     assert GeminiProvider().default_model(["antigravity-preview", "gemini-2.5-flash"]) == "gemini-2.5-flash"
     assert GroqProvider().default_model(["x"]) == "x"
+
+
+def test_rate_limit_wait_is_parsed_and_honoured(monkeypatch):
+    from gterm.ai import providers as pv
+
+    assert pv._suggested_wait("Please try again in 10.98s. Need more", None) == pytest.approx(11.48)
+    assert pv._suggested_wait("retry in 250ms", None) == pytest.approx(0.75)
+    assert pv._suggested_wait("x", "7") == 7.5
+    assert pv._suggested_wait("no hint", None) is None
+    slept, calls = [], []
+    monkeypatch.setattr("time.sleep", lambda s: slept.append(s))
+
+    def limited(req, timeout):
+        calls.append(1)
+        if len(calls) == 1:
+            raise pv._Retryable(429, "try again in 3s", 3.5)
+        return {"ok": 1}
+
+    monkeypatch.setattr(pv, "_send_once", limited)
+    assert pv._send(object(), 1) == {"ok": 1} and slept == [3.5]
+
+
+def test_system_prompt_has_todays_date():
+    from datetime import date
+
+    assert date.today().isoformat() in agent.system_prompt()
+
+
+def test_groq_retries_once_when_model_invents_a_tool(monkeypatch):
+    from gterm.ai import providers as pv
+
+    sent = []
+
+    def fake_post(url, body, headers, timeout=120):
+        sent.append(body)
+        if len(sent) == 1:
+            raise ProviderError("api.groq.com: HTTP 400: Tool call validation failed: attempted to call tool 'open_file'")
+        return {"choices": [{"message": {"content": "ok"}}]}
+
+    monkeypatch.setattr(pv, "_post", fake_post)
+    monkeypatch.setattr(pv.GroqProvider, "key", property(lambda self: "k"))
+    t = GroqProvider().chat("m", "sys", [{"role": "user", "text": "q"}], TOOLS)
+    assert t.text == "ok" and len(sent) == 2
+    assert "ONLY these tools: get_quote" in sent[1]["messages"][0]["content"]

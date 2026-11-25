@@ -54,6 +54,7 @@ def get_fundamentals(symbol: str) -> dict:
             years.setdefault(str(d.year), {})[line] = _r(v / 1e6 if line != "operating_margin" else v)
     return {"symbol": symbol, "name": f.name, "sector": f.sector, "country": f.country,
             "statement_currency": f.financial_currency, "units": "millions (margins as fractions)",
+            "basis": "reported annual results (actuals) by fiscal year end; not forecasts",
             "fiscal_years": years, "adjustments": f.adjustments, "source": f.source, "as_of": _now()}
 
 

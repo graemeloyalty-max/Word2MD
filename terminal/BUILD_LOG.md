@@ -310,3 +310,50 @@ volatility surface on free options data. **Cost:** nothing new.
     (`gemini-3.5-flash`, `openai/gpt-oss-120b`), falling back in order;
   - the page now says that commentary around the numbers is the model's own unsourced knowledge.
 - Tests: 104 passing.
+
+---
+
+## Phase 5 (part 2): research team, agent settings, report builder (25 Nov 2026)
+
+### Step 1: Multi-agent research (`gterm/ai/team.py`)
+- **Planner** writes one sub-question per relevant specialist, as JSON (read even when wrapped in extra text; if unreadable,
+  every specialist gets the full question).
+- **Specialists** (Fundamentals, Valuation, Macro, News) each answer with only their own tools, on their own provider/model. A call
+  to a tool outside an agent's list is refused and an error is sent back to that agent.
+- **Editor** has no tools: it gets the specialists' notes plus a *fact sheet* of every raw tool result, must use only those figures,
+  and must check each conclusion against the numbers (the Valuation role spells out that a multiple above the peer median is a premium).
+- One agent failing doesn't stop the team; the note says which part is missing.
+
+### Step 2: Agent settings
+- Role/instructions, provider, model, allowed tools, step limit and on/off for each agent, editable on the page and saved in
+  `data/agents.json`, with a reset to defaults. Defaults run everything on Gemini, so a single key is enough.
+
+### Step 3: Report builder (`gterm/reports.py`)
+- Every research run is saved (`data/reports/`) with its full tool trail; exports to **Word**, **PDF** and **Markdown**.
+- Each export ends with a **Sources appendix**: every tool call, the agent that made it, its arguments, data source and retrieval time,
+  plus the models and token counts used.
+- PDFs use the DejaVu font where available so €, accents etc. print; otherwise they fall back to a Latin-1 font with safe substitutions.
+
+### Step 4: Live runs (planner + editor on Gemini 3.5 Flash, specialists on Groq gpt-oss-120b)
+- **Run 1 (46 s):** a full SAP note, peer comparison read correctly. Problems found:
+  1. **Groq's free tier allows 8,000 tokens/minute**; Macro and News hit it. → On HTTP 429 the app now reads the wait Groq suggests
+     ("try again in 10.98s") or the Retry-After header and retries automatically (waits up to 30 s).
+  2. **The editor called FY2025 "projected"**: SAP's FY2025 (Dec 2025) is reported, but the model's own training cutoff made it
+     think 2025 was the future. → Today's date is now in every agent's instructions, and the fundamentals tool labels its data
+     "reported annual results (actuals)".
+  3. A specialist that failed mid-way lost the tool results it had already fetched. → They're now kept for the editor's fact sheet.
+- **Run 2 (browser, 135 s including rate-limit waits):** Macro now succeeded after waiting out the limit. **News failed: gpt-oss-120b
+  tried to call a non-existent tool `open_file`** (a habit from its training), and Groq rejected it server-side with HTTP 400.
+  → Groq requests that fail this way are retried once, with an explicit list of the allowed tools.
+- Word and PDF downloads from the Reports tab checked visually. Fixes:
+  - literal underscores around the italic date line (fpdf2 marks italics with `__`, not `_`);
+  - tool names losing their underscores in the sources table (`get_macro_indicator` read as italic markup), so underscore italics now count only at word boundaries;
+  - clipped titles now end with "…".
+- Observed: the Valuation specialist also pulled peer multiples for US software names (Oracle, Salesforce, Microsoft) on its own
+  initiative, and the editor described them loosely. The figures were sourced, but free models can over-reach; the raw tool results
+  stay one click away.
+
+### Step 5: Tests: 115 passing (11 new)
+- Plan parsing; config save/load/reset; a scripted end-to-end team run (planner skips specialists, a blocked out-of-list tool, one
+  agent failing, editor receives the fact sheet); Markdown/Word/PDF exports are valid files with the sources appendix; report library;
+  rate-limit wait parsing and retry; the date in prompts; the Groq invented-tool retry; snake_case not italicised.

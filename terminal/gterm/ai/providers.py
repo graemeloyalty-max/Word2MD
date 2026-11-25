@@ -19,6 +19,7 @@ Check each provider's current terms: some free tiers may use prompts to improve 
 from __future__ import annotations
 
 import json
+import re
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
@@ -71,13 +72,31 @@ def _send(req, timeout) -> dict:
             return _send_once(req, timeout)
         except _Retryable as exc:
             if wait is None:
-                raise ProviderError(f"{_host(req)}: service busy (HTTP {exc.code}) after retries: {exc.detail}") from None
-            time.sleep(wait)
+                what = "rate limit still reached" if exc.code == 429 else "service busy"
+                raise ProviderError(f"{_host(req)}: {what} (HTTP {exc.code}) after retries: {exc.detail}") from None
+            time.sleep(exc.wait if exc.wait is not None else wait)
 
 
 class _Retryable(Exception):
-    def __init__(self, code, detail):
-        self.code, self.detail = code, detail
+    def __init__(self, code, detail, wait=None):
+        self.code, self.detail, self.wait = code, detail, wait
+
+
+MAX_RATE_WAIT = 30  # seconds: wait out short free-tier rate limits (e.g. Groq's tokens-per-minute) instead of failing
+
+
+def _suggested_wait(detail: str, retry_after) -> float | None:
+    """How long the provider says to wait: Retry-After header, or text like 'try again in 10.98s' / 'retry in 7s'."""
+    try:
+        if retry_after:
+            return float(retry_after) + 0.5
+    except ValueError:
+        pass
+    m = re.search(r"(?:try again|retry) in ([0-9.]+)\s*(ms|s)", detail, re.I)
+    if m:
+        v = float(m.group(1))
+        return (v / 1000 if m.group(2).lower() == "ms" else v) + 0.5
+    return None
 
 
 def _host(req) -> str:
@@ -96,6 +115,9 @@ def _send_once(req, timeout) -> dict:
         if exc.code in (500, 502, 503):
             raise _Retryable(exc.code, detail) from exc
         if exc.code == 429:
+            wait = _suggested_wait(detail, exc.headers.get("retry-after") if exc.headers else None)
+            if wait is not None and wait <= MAX_RATE_WAIT:
+                raise _Retryable(429, detail, wait) from exc
             raise ProviderError(f"{host}: rate limit reached (free-tier quota). Wait a minute or switch provider. {detail}") from exc
         if "1010" in detail:
             raise ProviderError(f"{host}: blocked by Cloudflare (error 1010: client signature), not a key problem.") from exc
@@ -247,7 +269,17 @@ class GroqProvider(Provider):
         return Turn(msg.get("content") or "", calls, usage.get("prompt_tokens", 0), usage.get("completion_tokens", 0), msg)
 
     def chat(self, model, system, messages, tools) -> Turn:
-        return self.parse_response(_post(f"{self.BASE}/chat/completions", self.to_request(model, system, messages, tools), self._headers()))
+        url = f"{self.BASE}/chat/completions"
+        try:
+            return self.parse_response(_post(url, self.to_request(model, system, messages, tools), self._headers()))
+        except ProviderError as exc:
+            # Some models invent tools from their training (e.g. gpt-oss calling "open_file"); Groq rejects the call
+            # server-side with HTTP 400. Retry once with an explicit list of the allowed tools.
+            if "tool call validation failed" not in str(exc).lower() or not tools:
+                raise
+            reminder = (f"{system}\n\nIMPORTANT: you may call ONLY these tools: {', '.join(t['name'] for t in tools)}. "
+                        "There are no other tools (no browsing, no file access). If none fits, answer in text.")
+            return self.parse_response(_post(url, self.to_request(model, reminder, messages, tools), self._headers()))
 
 
 PROVIDERS = {"Google AI Studio (Gemini)": GeminiProvider, "Groq": GroqProvider}
