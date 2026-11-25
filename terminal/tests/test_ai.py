@@ -114,3 +114,29 @@ def test_tools_return_sources_and_handle_errors():
     assert "error" in tools.execute("get_quote", {"wrong": 1})
     assert "error" in tools.execute("nope", {})
     assert {d["name"] for d in tools.definitions()} == set(tools.TOOLS)
+
+
+def test_busy_service_is_retried(monkeypatch):
+    from gterm.ai import providers as pv
+
+    calls = []
+
+    def flaky(req, timeout):
+        calls.append(1)
+        if len(calls) < 3:
+            raise pv._Retryable(503, "high demand")
+        return {"ok": True}
+
+    monkeypatch.setattr(pv, "_send_once", flaky)
+    monkeypatch.setattr(pv, "RETRY_WAITS", (0, 0))
+    assert pv._send(object(), 1) == {"ok": True} and len(calls) == 3
+    calls.clear()
+    monkeypatch.setattr(pv, "_send_once", lambda r, t: (_ for _ in ()).throw(pv._Retryable(503, "busy")))
+    with pytest.raises(ProviderError, match="busy"):
+        pv._send(type("R", (), {"full_url": "https://api.groq.com/x"})(), 1)
+
+
+def test_default_model_prefers_verified_models():
+    assert GroqProvider().default_model(["allam-2-7b", "openai/gpt-oss-120b"]) == "openai/gpt-oss-120b"
+    assert GeminiProvider().default_model(["antigravity-preview", "gemini-2.5-flash"]) == "gemini-2.5-flash"
+    assert GroqProvider().default_model(["x"]) == "x"

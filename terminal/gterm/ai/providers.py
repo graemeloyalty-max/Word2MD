@@ -46,25 +46,59 @@ class Turn:
     raw: object = None  # provider-specific message, echoed back unchanged on the next request
 
 
+# Groq sits behind Cloudflare, which rejects Python's default "Python-urllib" client name (error 1010).
+USER_AGENT = "GlobalEquityTerminal/1.0 (personal research tool)"
+
+
 def _post(url: str, body: dict, headers: dict, timeout: int = 120) -> dict:
     req = urllib.request.Request(url, data=json.dumps(body).encode(), method="POST",
-                                 headers={"Content-Type": "application/json", **headers})
+                                 headers={"Content-Type": "application/json", "User-Agent": USER_AGENT, **headers})
     return _send(req, timeout)
 
 
 def _get_json(url: str, headers: dict) -> dict:
-    return _send(urllib.request.Request(url, headers=headers), 30)
+    return _send(urllib.request.Request(url, headers={"User-Agent": USER_AGENT, **headers}), 30)
+
+
+RETRY_WAITS = (2, 5)  # seconds; for "overloaded / try again" answers (HTTP 500, 502, 503)
 
 
 def _send(req, timeout) -> dict:
-    host = req.host
+    import time
+
+    for wait in (*RETRY_WAITS, None):
+        try:
+            return _send_once(req, timeout)
+        except _Retryable as exc:
+            if wait is None:
+                raise ProviderError(f"{_host(req)}: service busy (HTTP {exc.code}) after retries: {exc.detail}") from None
+            time.sleep(wait)
+
+
+class _Retryable(Exception):
+    def __init__(self, code, detail):
+        self.code, self.detail = code, detail
+
+
+def _host(req) -> str:
+    import urllib.parse
+
+    return urllib.parse.urlparse(req.full_url).hostname or "provider"
+
+
+def _send_once(req, timeout) -> dict:
+    host = _host(req)
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
             return json.loads(r.read())
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode(errors="replace")[:400]
+        if exc.code in (500, 502, 503):
+            raise _Retryable(exc.code, detail) from exc
         if exc.code == 429:
             raise ProviderError(f"{host}: rate limit reached (free-tier quota). Wait a minute or switch provider. {detail}") from exc
+        if "1010" in detail:
+            raise ProviderError(f"{host}: blocked by Cloudflare (error 1010: client signature), not a key problem.") from exc
         if exc.code in (401, 403):
             raise ProviderError(f"{host}: key missing or invalid (HTTP {exc.code}). Add it in Settings. {detail}") from exc
         raise ProviderError(f"{host}: HTTP {exc.code}: {detail}") from exc
@@ -76,6 +110,11 @@ def _send(req, timeout) -> dict:
 class Provider:
     name = "base"
     key_name = ""
+    #: models verified live with the terminal's tools (25 Nov 2026), tried in order as the default
+    preferred: tuple = ()
+
+    def default_model(self, available: list[str]) -> str:
+        return next((m for m in self.preferred if m in available), available[0] if available else "")
 
     @property
     def key(self) -> str:
@@ -96,6 +135,7 @@ class Provider:
 class GeminiProvider(Provider):
     name = "Google AI Studio (Gemini)"
     key_name = "GEMINI_API_KEY"
+    preferred = ("gemini-3.5-flash", "gemini-flash-latest", "gemini-2.5-flash")
     BASE = "https://generativelanguage.googleapis.com/v1beta"
 
     def _headers(self):
@@ -159,6 +199,7 @@ class GeminiProvider(Provider):
 class GroqProvider(Provider):
     name = "Groq"
     key_name = "GROQ_API_KEY"
+    preferred = ("openai/gpt-oss-120b", "openai/gpt-oss-20b")
     BASE = "https://api.groq.com/openai/v1"
 
     def _headers(self):

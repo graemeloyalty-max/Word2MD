@@ -31,14 +31,17 @@ except ProviderError as exc:
     st.error(str(exc))
     st.stop()
 saved = settings.get("ai_models", {}).get(prov_name)
-model = c2.selectbox("Model", models, index=models.index(saved) if saved in models else 0,
-                     help="Pick a model that supports tool (function) calling. The list comes live from the provider.")
+default = saved if saved in models else provider.default_model(models)
+model = c2.selectbox("Model", models, index=models.index(default),
+                     help="Defaults to a model tested with the terminal's tools. Others must support tool (function) calling. If a model is busy (HTTP 503), pick another.")
 max_steps = c3.number_input("Max tool steps", 1, 20, 8, help="Each step is one request against your free quota.")
 if (prov_name, model) != (settings.get("ai_provider"), saved):
     config.save_settings({**settings, "ai_provider": prov_name, "ai_models": {**settings.get("ai_models", {}), prov_name: model}})
 
 st.caption("The AI can only use the terminal's own tools: " + ", ".join(f"`{n}`" for n in tools.TOOLS)
-           + ". Every number should carry a [source, date] citation. Research, not investment advice.")
+           + ". Every number should carry a [source, date] citation; explanations around the numbers come from the model's own "
+           "general knowledge, which is unsourced and may be out of date. Free models can misread results, so check the tool "
+           "results below each answer. Research, not investment advice.")
 
 key = f"chat_{prov_name}"
 if key not in st.session_state:

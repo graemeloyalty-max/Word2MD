@@ -11,7 +11,7 @@ in Python and Streamlit. No Fincept Terminal code is used.
 cd terminal
 pip install -r requirements.txt
 streamlit run Home.py        # opens http://localhost:8501
-python -m pytest -q          # 93 tests
+python -m pytest -q          # 104 tests
 ```
 
 You can also use GitHub Codespaces: open the repo in a Codespace and the app installs and starts by itself (`.devcontainer/`).
@@ -43,6 +43,7 @@ terminal/
     7_News_and_Events.py
     8_Quant_Lab.py
     9_Volatility_Surface.py
+    10_AI_Research.py
   gterm/
     data/base.py             the DataSource interface every source implements
     data/yfinance_source.py  yfinance adapter
@@ -59,6 +60,9 @@ terminal/
     quant/factors.py         factor scores, point-in-time fundamentals, IC, quantile returns
     quant/metrics.py         CAGR, Sharpe, Sortino, drawdown, Calmar
     quant/universe.py        loads a universe in one currency
+    ai/providers.py          Gemini (Google AI Studio) and Groq adapters
+    ai/tools.py              the terminal's functions as AI tools (cited)
+    ai/agent.py              ask → run tools → answer loop
     core/portfolio_loader.py prices + FX + profiles for a portfolio
     analysis/dcf.py          DCF, sensitivity grid, reverse DCF
     analysis/multiples.py    peer groups and implied prices
@@ -189,6 +193,15 @@ at-the-money term structure. US options come from Yahoo; BTC/ETH from Deribit, u
 - **Survivorship bias**: the universe is today's companies, with no delisted firms, so results look better than reality.
 - Fundamentals cover about 4 years, so value and quality tests are short.
 - Market value uses today's share count throughout.
+
+## AI research (Phase 5, part 1), in plain English
+
+The AI never browses the web or touches the app directly. It can only *ask* for one of the terminal's tools (quote, fundamentals,
+DCF, peers, quality, macro, policy rates, news); the app runs it and sends the result back, including its source and date. The
+model must cite those. Providers are pluggable like data sources: **Google AI Studio (Gemini)** and **Groq** use free keys
+(`GEMINI_API_KEY`, `GROQ_API_KEY` in Settings). Defaults are the models verified with the tools: `gemini-3.5-flash` and
+`openai/gpt-oss-120b`. Free tiers have rate limits; busy errors are retried automatically. Treat the model's *reasoning* with
+care: in testing, one model quoted correct numbers but drew the wrong conclusion from them.
 
 ## Phase plan
 

@@ -288,4 +288,25 @@ volatility surface on free options data. **Cost:** nothing new.
 - Gemini and Groq request/response translation on sample payloads (tool calls, thought-signature echo, grouped results, blocked prompts,
   bad JSON arguments), the agent loop with a scripted fake model (tool results sent back, token totals, step limit), and every tool on demo data.
 
-**Pending:** live test with your keys.
+### Step 5: Live test with your keys
+- **Keys:** your two keys were saved as *network secrets* on the cloud environment (one per host:
+  `generativelanguage.googleapis.com` with header `x-goog-api-key`; `api.groq.com` with `Authorization: Bearer`). The approval-card
+  route failed again, so you added them in the environment settings yourself.
+- **Gemini:** key valid, 49 models listed.
+- **Groq:** the first call failed with **HTTP 403 "error code: 1010"**, which is Cloudflare (in front of Groq) blocking Python's default
+  client name, not a key problem. Fixed by sending a proper `User-Agent`; Groq then listed 4 models. 1010 errors now get their own message.
+- **Same research question on both** ("Value SAP.DE: DCF, peers, quality score"):
+  - **Groq `openai/gpt-oss-120b`:** 11 s, 3 tool calls, no errors, ~6.1k tokens. The numbers matched the app (DCF €281.6 vs €190.1,
+    quality 86.6), **but its conclusion misread the peer comparison** (called SAP undervalued vs peers when the multiples say it is
+    more expensive). Correct numbers, wrong inference: a reason the page shows every tool result.
+  - **Gemini `gemini-flash-latest`:** HTTP 503 "high demand" (Google-side). Added automatic retries (2 s, 5 s) for 500/502/503.
+  - **Gemini `gemini-3.5-flash`:** 9 s, 4 tool calls, ~5.1k tokens, [yfinance, date] citations, peer comparison read correctly,
+    key DCF assumptions stated.
+- **Browser test:** the inflation example question on the AI Research page. Gemini called the World Bank and IMF tools for both regions
+  and returned a fully cited table; no errors.
+- **Fixes:**
+  - error messages showed the network proxy's address instead of the provider host;
+  - the model picker defaulted to the alphabetically first model (e.g. "allam-2-7b"); it now defaults to the verified models
+    (`gemini-3.5-flash`, `openai/gpt-oss-120b`), falling back in order;
+  - the page now says that commentary around the numbers is the model's own unsourced knowledge.
+- Tests: 104 passing.
