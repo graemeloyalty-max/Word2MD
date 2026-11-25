@@ -3,7 +3,7 @@
 A personal financial research terminal for global equity evaluation, written from scratch
 in Python and Streamlit. No Fincept Terminal code is used.
 
-**Status: Phase 4 (Quant lab) complete.** See BUILD_LOG.md for how it was built. See [BUILD_LOG.md](BUILD_LOG.md) for how it was built, step by step.
+**Status: Phase 5 (AI research) complete.** See BUILD_LOG.md for how it was built. See [BUILD_LOG.md](BUILD_LOG.md) for how it was built, step by step.
 
 ## Run it
 
@@ -11,7 +11,7 @@ in Python and Streamlit. No Fincept Terminal code is used.
 cd terminal
 pip install -r requirements.txt
 streamlit run Home.py        # opens http://localhost:8501
-python -m pytest -q          # 115 tests
+python -m pytest -q          # 135 tests
 ```
 
 You can also use GitHub Codespaces: open the repo in a Codespace and the app installs and starts by itself (`.devcontainer/`).
@@ -44,6 +44,9 @@ terminal/
     8_Quant_Lab.py
     9_Volatility_Surface.py
     10_AI_Research.py
+    11_MCP_Connections.py
+    12_Code_Editor.py
+    13_Workflows.py
   gterm/
     data/base.py             the DataSource interface every source implements
     data/yfinance_source.py  yfinance adapter
@@ -65,6 +68,11 @@ terminal/
     ai/agent.py              ask → run tools → answer loop
     ai/team.py               planner → specialists → editor research team
     reports.py               save notes, export Word / PDF / Markdown with sources
+    ai/mcp_client.py         use tools from outside MCP servers
+    mcp_server.py            run the terminal as an MCP server (for Claude Code / Desktop)
+    scripts.py               code editor back end (sandboxed subprocess)
+    workflows.py             visual workflow runner
+    components/flow/         drag-and-drop canvas (bundled Drawflow, MIT)
     core/portfolio_loader.py prices + FX + profiles for a portfolio
     analysis/dcf.py          DCF, sensitivity grid, reverse DCF
     analysis/multiples.py    peer groups and implied prices
@@ -212,11 +220,24 @@ agent's provider, model, tools and instructions are set in the Agents tab. Tip: 
 minute, so spread specialists across Gemini and Groq; short rate-limit waits are handled automatically. Every run is saved
 in the Reports tab and exports to Word, PDF or Markdown with a sources appendix.
 
+**MCP connections** (MCP Connections page). Register outside MCP servers (a local command or a URL); their tools appear to
+the AI as `mcp__<server>__<tool>`. Results keep the underlying data source in their citation. The terminal can also *be* an MCP
+server: `claude mcp add equity-terminal -- python -m gterm.mcp_server` lets Claude Code on a Claude Pro plan use its research
+tools with no API key. Only add servers you trust: a local command runs with your permissions.
+
+**Code editor** (Code Editor page). Python scripts run in a separate process with a time limit, with `prices()`, `quote()`,
+`fundamentals()`, `to_ccy()`, the analysis and quant modules, pandas, numpy and plotly preloaded. `show()` puts tables, charts and
+values on the page. Saved in `data/scripts/`; three examples included.
+
+**Workflows** (Workflows page). Drag blocks onto a canvas and connect them: tickers, quotes, performance, fundamentals, macro, news,
+DCF, quality, peers, filter, sort, merge, AI writer, save report. The runner executes blocks in dependency order, refuses loops,
+skips blocks downstream of a failure, and saves reports with a full Sources appendix.
+
 ## Phase plan
 
 1. **Foundation** ✅: shell, data layer, cache, Settings, quotes, charts, watchlists
 2. **Equity research core** ✅: DCF, multiples, quality score, country/currency overlay (yfinance + SEC EDGAR)
 3. **Portfolio, macro, news and dashboard** ✅
 4. **Quant lab** ✅
-5. Agentic research (needs Anthropic API key)
+5. **AI research** ✅: Gemini/Groq chat, research team, reports, MCP, code editor, workflows (free keys)
 6. Everything else

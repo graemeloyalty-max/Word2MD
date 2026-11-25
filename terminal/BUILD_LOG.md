@@ -357,3 +357,48 @@ volatility surface on free options data. **Cost:** nothing new.
 - Plan parsing; config save/load/reset; a scripted end-to-end team run (planner skips specialists, a blocked out-of-list tool, one
   agent failing, editor receives the fact sheet); Markdown/Word/PDF exports are valid files with the sources appendix; report library;
   rate-limit wait parsing and retry; the date in prompts; the Groq invented-tool retry; snake_case not italicised.
+
+---
+
+## Phase 5 (part 3): MCP connections, code editor, visual workflows (25 Nov 2026)
+
+### Step 1: MCP (`gterm/ai/mcp_client.py`, `gterm/mcp_server.py`, `pages/11_MCP_Connections.py`)
+- The installed MCP SDK was **v2.3**, a newer major version than expected. I inspected its API before writing code: `FastMCP` is now
+  `MCPServer`, there's a high-level `Client`, and fields are snake_case (`input_schema`, `is_error`, `structured_content`). A throwaway
+  server/client round trip confirmed listing, calling, and errors flagged rather than raised.
+- **Client:** register stdio or HTTP servers; their tools join the AI's tool list as `mcp__<server>__<tool>`, with schemas cleaned to the
+  subset every provider accepts (Gemini rejects `title`, `additionalProperties`, ...; `Optional[x]` collapsed to `x`).
+- **Terminal as an MCP server:** `python -m gterm.mcp_server` exposes the research tools, e.g. to Claude Code on Pro with no API key.
+- **Bug found live:** through MCP, Gemini reported Nestlé at CHF 90.00, which is the *demo* price. The SDK starts stdio servers with a minimal
+  environment (no proxy settings), so the server couldn't reach Yahoo and "auto" silently fell back to demo data; and the wrapper relabelled
+  the source as "MCP server 'terminal'", hiding the inner "demo (synthetic)" label. Fixes: proxy/certificate variables are passed through,
+  and MCP results now cite "<real source> via MCP server '<name>'". Re-run: CHF 86.28 [yfinance], matching the app.
+- Also: servers often return JSON as text, so it's now parsed into structure.
+
+### Step 2: Code editor (`gterm/scripts.py`, `pages/12_Code_Editor.py`)
+- Scripts run as a separate process with a time limit and the terminal's helpers preloaded; `show()` renders tables/charts/values;
+  tracebacks point at "your_script.py" lines (runner frames removed). There's a saved-script library and three examples (DCF screen, rolling correlation in ZAR, momentum backtest).
+- pandas 3 no longer accepts JSON strings in `read_json`; wrapped in `StringIO`.
+- **Valuation flaw exposed by the DCF-screen example:** Nestlé DCF = CHF 3,206 vs 86 (+3,615%). The CHF risk-free placeholder (0.7%) and a low beta
+  gave a 2.6% WACC against 2.5% terminal growth, a 0.1-point gap that the terminal value divides by. Fixes: default terminal growth = min(2.5%,
+  risk-free) (Equity Research page and AI tool), and a warning whenever WACC − g < 2 points. Nestlé now CHF 172 *with* the warning. The remaining
+  gap is the low franc rate; whether to use a minimum discount rate is left as your call.
+
+### Step 3: Visual workflows (`gterm/components/flow/`, `gterm/workflows.py`, `pages/13_Workflows.py`)
+- The CDNs (jsDelivr, unpkg) are blocked, so Drawflow (MIT) was downloaded from the npm registry and **bundled** into the repo with its licence;
+  the canvas works offline.
+- A custom Streamlit component (plain HTML/JS, no build step) speaks Streamlit's component messages directly. It sends the graph to Python on every
+  change, and reloads from Python only when a different workflow is chosen, so edits survive reruns.
+- 14 block types; the runner orders blocks topologically, refuses loops, skips blocks downstream of a failure (with the reason), records
+  provenance for every data call, and the report block saves a report with a Sources appendix.
+- `to_markdown` needs the optional `tabulate` package; a small built-in table formatter is used instead.
+- Browser test: the example drew 7 blocks / 7 connections; clicking a palette block reached Python (7 → 8); reload restored it; **Run** finished
+  7 blocks, 0 errors, live (yfinance data, Gemini summary, report saved). The example was re-laid out to fit the canvas, and Streamlit's usage
+  statistics were switched off (`.streamlit/config.toml`).
+
+### Step 4: Tests: 135 passing (20 new)
+- MCP against real subprocess servers (a demo server with a failing tool, and the terminal's own MCP server on demo data), schema cleaning,
+  unreachable servers, disabled servers, an agent using an MCP tool, proxy pass-through, inner-source labelling.
+- Code editor: helpers + `show()`, tracebacks pointing at the user's code, timeouts, library, examples compile.
+- Workflows: order, loops, a full DCF→quality→merge→filter→sort run, error skipping, an AI block with a fake model + report sources, examples, Markdown tables.
+- DCF: terminal-growth cap and the thin-spread warning.

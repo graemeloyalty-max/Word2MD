@@ -1,0 +1,153 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="drawflow.min.css">
+<style>
+  :root { --bg:#fafafa; --panel:#ffffff; --ink:#262730; --muted:#6b7280; --line:#d1d5db; --accent:#ff4b4b;
+          --data:#2563eb; --analysis:#059669; --step:#7c3aed; --ai:#d97706; --out:#dc2626; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; font-family: "Source Sans Pro", system-ui, sans-serif; color:var(--ink); background:transparent; }
+  #wrap { display:flex; height:100%; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  #palette { width:170px; background:var(--panel); border-right:1px solid var(--line); padding:8px; overflow-y:auto; }
+  #palette h4 { margin:10px 0 4px; font-size:11px; text-transform:uppercase; color:var(--muted); letter-spacing:.05em; }
+  .pal { display:block; width:100%; text-align:left; margin:3px 0; padding:5px 8px; border:1px solid var(--line); border-left:4px solid var(--c);
+         border-radius:6px; background:#fff; cursor:grab; font-size:13px; }
+  .pal:hover { background:#f3f4f6; }
+  #drawflow { flex:1; position:relative; background: var(--bg) radial-gradient(#e5e7eb 1px, transparent 1px); background-size:18px 18px; }
+  #hint { position:absolute; left:10px; bottom:8px; font-size:11px; color:var(--muted); pointer-events:none; z-index:2; }
+  .drawflow .drawflow-node { width:210px; min-height:40px; padding:0; border:1px solid var(--line); border-top:4px solid var(--c, #999);
+         border-radius:8px; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .drawflow .drawflow-node.selected { border-color:var(--accent); box-shadow:0 0 0 2px rgba(255,75,75,.25); background:#fff; }
+  .drawflow .drawflow-node .input, .drawflow .drawflow-node .output { width:14px; height:14px; border:2px solid #9ca3af; background:#fff; }
+  .drawflow .connection .main-path { stroke:#6b7280; stroke-width:3px; }
+  .drawflow .connection .main-path:hover, .drawflow .connection .main-path.selected { stroke:var(--accent); }
+  .node-box { padding:6px 8px; font-size:12px; }
+  .node-title { font-weight:600; font-size:13px; margin-bottom:4px; }
+  .node-box label { display:block; color:var(--muted); font-size:11px; margin-top:4px; }
+  .node-box input, .node-box select, .node-box textarea { width:100%; font-size:12px; padding:3px 4px; border:1px solid var(--line); border-radius:4px; font-family:inherit; }
+  .node-box textarea { height:48px; resize:vertical; }
+  .drawflow-delete { background:var(--accent); border:none; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="palette"></div>
+  <div id="drawflow"><div id="hint">Drag blocks from the left (or click them) · connect a right-hand dot to a left-hand dot · select + Delete removes</div></div>
+</div>
+<script src="drawflow.min.js"></script>
+<script>
+// ---------------------------------------------------------------- minimal Streamlit component protocol
+function send(type, extra) { window.parent.postMessage(Object.assign({ isStreamlitMessage: true, type: type }, extra || {}), "*"); }
+const HEIGHT = 560;
+
+// ---------------------------------------------------------------- node catalogue (must match gterm/workflows.py)
+const C = { data: "var(--data)", analysis: "var(--analysis)", step: "var(--step)", ai: "var(--ai)", out: "var(--out)" };
+const sel = (name, opts) => `<select df-${name}>${opts.map(o => `<option value="${o}">${o}</option>`).join("")}</select>`;
+const NODES = {
+  tickers:      { group: "Data", label: "Tickers", c: C.data, ins: 0, outs: 1, data: { symbols: "AAPL, MSFT, SAP.DE" },
+                  body: `<label>Symbols (comma-separated)</label><input df-symbols>` },
+  quotes:       { group: "Data", label: "Quotes", c: C.data, ins: 1, outs: 1, data: {}, body: `<label>Latest price per ticker</label>` },
+  performance:  { group: "Data", label: "Performance", c: C.data, ins: 1, outs: 1, data: { period: "1y" },
+                  body: `<label>Period</label>` + sel("period", ["1mo", "3mo", "6mo", "1y", "2y", "5y"]) },
+  fundamentals: { group: "Data", label: "Fundamentals", c: C.data, ins: 1, outs: 1, data: {}, body: `<label>Latest fiscal year</label>` },
+  macro:        { group: "Data", label: "Macro indicator", c: C.data, ins: 0, outs: 1,
+                  data: { indicator: "Real GDP growth", countries: "United States, Germany, South Africa", source: "World Bank" },
+                  body: `<label>Indicator</label>` + sel("indicator", ["Real GDP growth", "Inflation (CPI)", "Unemployment", "Current account balance", "Government debt"]) +
+                        `<label>Countries</label><input df-countries><label>Source</label>` + sel("source", ["World Bank", "IMF"]) },
+  news:         { group: "Data", label: "News", c: C.data, ins: 1, outs: 1, data: { query: "" },
+                  body: `<label>Query (blank = upstream tickers)</label><input df-query>` },
+  dcf:          { group: "Analysis", label: "DCF valuation", c: C.analysis, ins: 1, outs: 1, data: {}, body: `<label>Default assumptions</label>` },
+  quality:      { group: "Analysis", label: "Quality score", c: C.analysis, ins: 1, outs: 1, data: {}, body: `<label>0-100 per ticker</label>` },
+  peers:        { group: "Analysis", label: "Peer multiples", c: C.analysis, ins: 1, outs: 1, data: {}, body: `<label>Implied prices at peer median</label>` },
+  filter:       { group: "Steps", label: "Filter", c: C.step, ins: 1, outs: 1, data: { condition: "upside > 0" },
+                  body: `<label>Keep rows where</label><input df-condition>` },
+  sort:         { group: "Steps", label: "Sort", c: C.step, ins: 1, outs: 1, data: { column: "upside", order: "descending" },
+                  body: `<label>Column</label><input df-column>` + sel("order", ["descending", "ascending"]) },
+  merge:        { group: "Steps", label: "Merge", c: C.step, ins: 2, outs: 1, data: {}, body: `<label>Join two tables on symbol</label>` },
+  ai:           { group: "AI", label: "AI writer", c: C.ai, ins: 1, outs: 1,
+                  data: { provider: "Google AI Studio (Gemini)", model: "gemini-3.5-flash", instructions: "Summarise the data in 5 bullet points, citing sources." },
+                  body: `<label>Provider</label>` + sel("provider", ["Google AI Studio (Gemini)", "Groq"]) +
+                        `<label>Model</label><input df-model><label>Instructions</label><textarea df-instructions></textarea>` },
+  report:       { group: "Output", label: "Save report", c: C.out, ins: 1, outs: 0, data: { title: "Workflow report" },
+                  body: `<label>Title</label><input df-title>` },
+};
+const html = (name) => `<div class="node-box"><div class="node-title">${NODES[name].label}</div>${NODES[name].body}</div>`;
+
+// ---------------------------------------------------------------- palette
+const pal = document.getElementById("palette");
+let group = "";
+for (const [name, n] of Object.entries(NODES)) {
+  if (n.group !== group) { group = n.group; pal.insertAdjacentHTML("beforeend", `<h4>${group}</h4>`); }
+  const b = document.createElement("button");
+  b.className = "pal"; b.textContent = n.label; b.dataset.node = name; b.style.setProperty("--c", n.c); b.draggable = true;
+  b.addEventListener("dragstart", e => e.dataTransfer.setData("node", name));
+  b.addEventListener("click", () => addNode(name, 60 + Math.random() * 200, 40 + Math.random() * 200));
+  pal.appendChild(b);
+}
+
+// ---------------------------------------------------------------- editor
+const el = document.getElementById("drawflow");
+const editor = new Drawflow(el);
+editor.reroute = true;
+editor.start();
+
+function addNode(name, x, y, data) {
+  const n = NODES[name];
+  const id = editor.addNode(name, n.ins, n.outs, x, y, name, JSON.parse(JSON.stringify(data || n.data)), html(name));
+  styleNode(id, name);
+  return id;
+}
+function styleNode(id, name) {
+  const node = document.getElementById("node-" + id);
+  if (node && NODES[name]) node.style.setProperty("--c", NODES[name].c);
+}
+el.addEventListener("dragover", e => e.preventDefault());
+el.addEventListener("drop", e => {
+  e.preventDefault();
+  const name = e.dataTransfer.getData("node");
+  if (!NODES[name]) return;
+  const zoom = editor.zoom, rect = editor.precanvas.getBoundingClientRect();
+  const x = (e.clientX - rect.x) / zoom, y = (e.clientY - rect.y) / zoom;
+  addNode(name, x, y);
+});
+
+// Push the graph to Python (debounced) whenever it changes.
+let timer = null, loading = false;
+function publish() {
+  if (loading) return;
+  clearTimeout(timer);
+  timer = setTimeout(() => send("streamlit:setComponentValue", { value: editor.export(), dataType: "json" }), 350);
+}
+["nodeCreated", "nodeRemoved", "connectionCreated", "connectionRemoved", "nodeMoved", "nodeDataChanged"].forEach(ev => editor.on(ev, publish));
+el.addEventListener("input", publish);   // typing in node fields
+el.addEventListener("change", publish);  // selects
+
+// Load a graph from Python only when a different workflow is chosen (not on every rerun).
+let loadedId = null;
+function load(graph, id) {
+  loading = true;
+  editor.clear();
+  if (graph && graph.drawflow) {
+    const g = JSON.parse(JSON.stringify(graph));
+    for (const node of Object.values(g.drawflow.Home.data)) {
+      if (NODES[node.name]) { node.html = html(node.name); node.class = node.name; }
+    }
+    editor.import(g);
+    for (const node of Object.values(g.drawflow.Home.data)) styleNode(node.id, node.name);
+  }
+  loadedId = id;
+  loading = false;
+  publish();
+}
+
+window.addEventListener("message", (e) => {
+  if (!e.data || e.data.type !== "streamlit:render") return;
+  const args = e.data.args || {};
+  if (args.graph_id !== loadedId) load(args.graph, args.graph_id);
+});
+send("streamlit:componentReady", { apiVersion: 1 });
+send("streamlit:setFrameHeight", { height: HEIGHT });
+</script>
+</body>
+</html>

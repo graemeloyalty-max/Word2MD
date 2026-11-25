@@ -117,9 +117,9 @@ def build_progress():
 | 1 | Shell, data layer, cache, Settings, quotes & charts, watchlists | ✅ |
 | 2 | Equity research: statements, DCF, multiples, quality, country overlay | ✅ |
 | 3 | Portfolio, macro & central banks, news & GDELT, this dashboard | ✅ |
-| 4 | Quant lab: signals, backtests, sweeps, vol surface | next |
-| 5 | Agentic research (Anthropic API key) | |
-| 6 | Everything else | |
+| 4 | Quant lab: signals, backtests, sweeps, vol surface | ✅ |
+| 5 | AI research (Gemini, Groq), research team, reports, MCP, code editor, workflows | ✅ |
+| 6 | Derivatives, M&A, ownership, alternatives, prediction markets, maritime, workspace, paper trading, access | next |
 """)
 
 
