@@ -259,3 +259,33 @@ volatility surface on free options data. **Cost:** nothing new.
 - **Fix:** annual turnover counted the initial purchase (buy & hold showed 20%/yr); it now measures ongoing trading only.
 
 ### Step 6: Tests: 93 passing (31 new). All Quant Lab tabs and the surface page load in a browser on live data with no exceptions.
+
+---
+
+## Phase 5 (part 1): AI research with free providers (25 Nov 2026)
+
+**Decision:** instead of a paid Anthropic API key, start with two free-tier providers you chose: **Google AI Studio
+(Gemini)** and **Groq**. They sit behind one interface, so Claude (API key or Pro login) or a local model can be added later as more adapters.
+
+### Step 1: Provider layer (`gterm/ai/providers.py`)
+- One `Provider` interface: `list_models()` and `chat(model, system, messages, tools)`. The agent speaks a neutral message format.
+- **Gemini adapter**: `generateContent` with function declarations. The model's own reply is echoed back unchanged on the next
+  request (Gemini can attach "thought signatures" to tool calls and requires them back), and all tool results of one turn go in a single message.
+- **Groq adapter**: OpenAI-compatible `chat/completions` with `tools`. Tool arguments arrive as a JSON *string*; malformed JSON is caught, not fatal.
+- Both call the APIs directly over HTTPS, so no new packages. Rate-limit (429) and bad-key (401/403) errors get plain-English messages.
+- The model list is fetched live from each provider, so it never goes stale; the chosen model is remembered per provider.
+
+### Step 2: Tools the AI may call (`gterm/ai/tools.py`)
+- quote, price performance, normalised fundamentals, DCF (same defaults as the Equity Research page), peer multiples, quality score,
+  macro indicators (World Bank/IMF), policy rates, news search. Every result carries `source` and `as_of`. Output is kept compact to save free quota.
+
+### Step 3: Agent loop (`gterm/ai/agent.py`) and page (`pages/10_AI_Research.py`)
+- Ask → run requested tools → send results back → repeat, with a step limit (default 8) to protect quotas. Token counts are tracked per answer and per session.
+- The system prompt requires a [source, date] citation for every number and no invented figures.
+- The page: provider and model pickers, chat, a live list of tool calls, expandable raw tool results, token usage.
+
+### Step 4: Tests: 102 passing (9 new)
+- Gemini and Groq request/response translation on sample payloads (tool calls, thought-signature echo, grouped results, blocked prompts,
+  bad JSON arguments), the agent loop with a scripted fake model (tool results sent back, token totals, step limit), and every tool on demo data.
+
+**Pending:** live test with your keys.

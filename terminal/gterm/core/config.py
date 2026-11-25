@@ -20,7 +20,9 @@ BASE_CURRENCIES = ["USD", "EUR", "ZAR"]
 
 # Every key any module will ever need, with the module that uses it and the phase.
 API_KEYS = {
-    "ANTHROPIC_API_KEY": ("Agentic Research (AI chat, agents)", "Phase 5"),
+    "GEMINI_API_KEY": ("AI research via Google AI Studio (free key: aistudio.google.com)", "Phase 5"),
+    "GROQ_API_KEY": ("AI research via Groq (free key: console.groq.com)", "Phase 5"),
+    "ANTHROPIC_API_KEY": ("AI research via Claude API (optional, paid)", "Phase 5"),
     "FRED_API_KEY": ("Macro: FRED series (free key)", "Phase 3"),
     "EODHD_API_KEY": ("Emerging markets fundamentals", "Later phase"),
     "DATABENTO_API_KEY": ("Professional US options data", "Optional"),
@@ -30,7 +32,8 @@ API_KEYS = {
 }
 
 DEFAULTS = {"base_currency": "USD", "data_source": "auto", "sec_user_agent": "",
-            "dashboard_widgets": ["Market snapshot", "Portfolio", "Watchlist", "Key rates", "Headlines"]}
+            "dashboard_widgets": ["Market snapshot", "Portfolio", "Watchlist", "Key rates", "Headlines"],
+            "ai_provider": "Google AI Studio (Gemini)", "ai_models": {}}
 
 
 def _ensure_dirs():
