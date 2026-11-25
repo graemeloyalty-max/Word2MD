@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 
 from ..core.statements import normalise
-from .base import DataSource, DataSourceError, Fundamentals, KeyStats, PriceHistory, Quote
+from .base import DataSource, DataSourceError, Fundamentals, KeyStats, Ownership, PriceHistory, Quote
 
 # A small universe so the demo feels realistic. (name, currency, type, start price, exchange)
 UNIVERSE = {
@@ -190,3 +190,37 @@ def _demo_key_stats(self, symbol: str) -> KeyStats:
 
 DemoSource.get_fundamentals = _demo_fundamentals
 DemoSource.get_key_stats = _demo_key_stats
+
+
+DEMO_HOLDERS = ["Blackrock Inc.", "Vanguard Group Inc", "State Street Corp", "Fidelity (FMR)", "Capital Research",
+                "Norges Bank", "T. Rowe Price", "Geode Capital", "Amundi", "UBS Asset Management"]
+
+
+def _demo_ownership(self, symbol: str) -> Ownership:
+    name, ccy, qtype, _, _ = self._meta(symbol)
+    if qtype != "EQUITY":
+        raise DataSourceError(f"No ownership data for {symbol} ({qtype.lower()}).")
+    rng = np.random.default_rng(_seed(symbol) + 11)
+    shares_out = 1e9 * (1 + _seed(symbol) % 5)
+    price = self.get_quote(symbol).price
+    picks = rng.choice(len(DEMO_HOLDERS), 7, replace=False)
+    pct = np.sort(rng.uniform(0.005, 0.08, 7))[::-1]
+    inst = pd.DataFrame({"Date Reported": pd.Timestamp(self.today) - pd.Timedelta(days=55), "Holder": [DEMO_HOLDERS[i] for i in picks],
+                         "pctHeld": pct, "Shares": (pct * shares_out).round(), "Value": (pct * shares_out * price).round(),
+                         "pctChange": rng.normal(0, 0.02, 7)})
+    people = ["A. Smith", "B. Jones", "C. Brown", "D. Miller"]
+    rows = []
+    for k in range(12):
+        who = people[k % 4]
+        sale = rng.random() < 0.7
+        n = int(rng.integers(1000, 50000))
+        rows.append({"Shares": n, "Value": n * price, "Text": ("Sale" if sale else "Purchase") + f" at price {price:.2f} per share.",
+                     "Insider": who, "Position": ["CEO", "CFO", "Director", "Officer"][k % 4], "Transaction": "",
+                     "Start Date": pd.Timestamp(self.today) - pd.Timedelta(days=int(15 * k)), "Ownership": "D"})
+    roster = pd.DataFrame({"Name": people, "Position": ["CEO", "CFO", "Director", "Officer"],
+                           "Shares Owned Directly": rng.integers(1e4, 1e6, 4)})
+    return Ownership(symbol, inst, inst.iloc[:4].assign(pctHeld=inst["pctHeld"].iloc[:4] / 3), pd.DataFrame(rows), roster,
+                     {"insiders_pct": 0.01, "institutions_pct": float(pct.sum() * 4)}, self.name, datetime.now(timezone.utc))
+
+
+DemoSource.get_ownership = _demo_ownership

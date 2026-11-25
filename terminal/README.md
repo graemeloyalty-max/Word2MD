@@ -3,7 +3,7 @@
 A personal financial research terminal for global equity evaluation, written from scratch
 in Python and Streamlit. No Fincept Terminal code is used.
 
-**Status: Phase 5 (AI research) complete.** See BUILD_LOG.md for how it was built. See [BUILD_LOG.md](BUILD_LOG.md) for how it was built, step by step.
+**Status: Phase 6 in progress (batch A: derivatives, M&A, ownership, alternatives done).** See BUILD_LOG.md for how it was built. See [BUILD_LOG.md](BUILD_LOG.md) for how it was built, step by step.
 
 ## Run it
 
@@ -11,7 +11,7 @@ in Python and Streamlit. No Fincept Terminal code is used.
 cd terminal
 pip install -r requirements.txt
 streamlit run Home.py        # opens http://localhost:8501
-python -m pytest -q          # 135 tests
+python -m pytest -q          # 161 tests
 ```
 
 You can also use GitHub Codespaces: open the repo in a Codespace and the app installs and starts by itself (`.devcontainer/`).
@@ -47,6 +47,10 @@ terminal/
     11_MCP_Connections.py
     12_Code_Editor.py
     13_Workflows.py
+    14_Derivatives.py
+    15_Mergers_and_Acquisitions.py
+    16_Ownership.py
+    17_Alternatives.py
   gterm/
     data/base.py             the DataSource interface every source implements
     data/yfinance_source.py  yfinance adapter
@@ -72,6 +76,10 @@ terminal/
     mcp_server.py            run the terminal as an MCP server (for Claude Code / Desktop)
     scripts.py               code editor back end (sandboxed subprocess)
     workflows.py             visual workflow runner
+    analysis/strategies_opt.py  multi-leg option strategies
+    analysis/ma.py           accretion/dilution, deal multiples
+    analysis/ownership.py    insider activity, ownership networks
+    analysis/alternatives.py crypto, commodities, REITs, bonds
     components/flow/         drag-and-drop canvas (bundled Drawflow, MIT)
     core/portfolio_loader.py prices + FX + profiles for a portfolio
     analysis/dcf.py          DCF, sensitivity grid, reverse DCF
@@ -232,6 +240,23 @@ values on the page. Saved in `data/scripts/`; three examples included.
 **Workflows** (Workflows page). Drag blocks onto a canvas and connect them: tickers, quotes, performance, fundamentals, macro, news,
 DCF, quality, peers, filter, sort, merge, AI writer, save report. The runner executes blocks in dependency order, refuses loops,
 skips blocks downstream of a failure, and saves reports with a full Sources appendix.
+
+## Phase 6 batch A, in plain English
+
+**Derivatives.** A Black-Scholes pricer with all five Greeks, and a strategy builder: ten presets (spreads, straddle, iron condor,
+butterfly…) or your own legs. It shows payoff at expiry and today, breakevens, max profit/loss ("unlimited" when the line still
+slopes at the edge) and net Greeks; premiums and IVs can be filled from the live US option chain.
+
+**M&A.** Accretion/dilution: offer premium, % paid in shares, borrowing cost for the cash part, synergies, tax; pro forma EPS,
+breakeven synergies, a premium × stock-mix grid, and offer multiples. It prefills from two tickers, converting the target into the
+acquirer's currency. Precedent deals are entered by you (no free database exists). Fees and purchase-price accounting aren't modelled.
+
+**Ownership.** Top institutional and fund holders (13F filings, up to ~45 days old), insider activity classed as buys, sales or other
+(gifts, awards), a network map per company, and a common-ownership map showing which big holders several companies share.
+Mostly US coverage.
+
+**Alternatives.** Crypto, commodity futures, REITs (US/Europe/SA) and bond ETFs in your base currency, with returns, volatility, worst
+fall and correlation with world equities (does it diversify?), plus US Treasury yields. Futures series jump at contract rolls.
 
 ## Phase plan
 

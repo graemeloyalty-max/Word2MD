@@ -10,7 +10,7 @@ import pandas as pd
 
 from ..core.fx import normalise_currency
 from ..core.statements import latest, normalise
-from .base import PRICE_COLUMNS, DataSource, DataSourceError, Fundamentals, KeyStats, PriceHistory, Quote
+from .base import PRICE_COLUMNS, DataSource, DataSourceError, Fundamentals, KeyStats, Ownership, PriceHistory, Quote
 
 
 class YFinanceSource(DataSource):
@@ -195,6 +195,28 @@ class YFinanceSource(DataSource):
             raise DataSourceError(f"Could not load any option chains for {symbol}")
         spot = self.get_prices(symbol, "5d").last_close
         return pd.concat(frames, ignore_index=True), spot, self._currency(t)
+
+    def get_ownership(self, symbol: str) -> Ownership:
+        t = self._ticker(symbol)
+
+        def frame(attr):
+            try:
+                df = getattr(t, attr)
+                return df.copy() if isinstance(df, pd.DataFrame) else pd.DataFrame()
+            except Exception:
+                return pd.DataFrame()
+
+        inst, funds, tx, roster, major = (frame(a) for a in ("institutional_holders", "mutualfund_holders",
+                                                              "insider_transactions", "insider_roster_holders", "major_holders"))
+        if all(df.empty for df in (inst, funds, tx, roster)):
+            raise DataSourceError(f"yfinance has no ownership data for {symbol} (it mostly covers US-listed companies).")
+        summary = {}
+        if not major.empty and "Value" in major.columns:
+            for key, name in (("insidersPercentHeld", "insiders_pct"), ("institutionsPercentHeld", "institutions_pct"),
+                              ("institutionsCount", "institutions_count")):
+                if key in major.index:
+                    summary[name] = float(major.loc[key, "Value"])
+        return Ownership(symbol, inst, funds, tx, roster, summary, self.name, datetime.now(timezone.utc))
 
     def search(self, query: str) -> list[dict]:
         try:

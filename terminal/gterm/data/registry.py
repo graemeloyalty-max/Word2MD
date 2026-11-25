@@ -9,7 +9,7 @@ from functools import lru_cache
 
 from ..core import cache, config
 from . import edgar_source
-from .base import DataSource, DataSourceError, Fundamentals, KeyStats, PriceHistory, Quote
+from .base import DataSource, DataSourceError, Fundamentals, KeyStats, Ownership, PriceHistory, Quote
 from .demo_source import DemoSource
 from .yfinance_source import YFinanceSource
 
@@ -139,3 +139,14 @@ def risk_free_usd_short() -> tuple[float, str] | None:
         return h.last_close / 100.0, f"US 13-week T-bill (^IRX) {h.last_close:.2f}% on {h.last_date:%Y-%m-%d}, {h.source}"
     except DataSourceError:
         return None
+
+
+def ownership(symbol: str) -> Ownership:
+    symbol = symbol.strip().upper()
+    src = active_source_name()
+    key = f"own|{src}|{symbol}"
+    if (hit := cache.get(key, FUNDAMENTALS_TTL_S)) is not None:
+        return hit
+    result = get_source(src).get_ownership(symbol)
+    cache.put(key, result)
+    return result

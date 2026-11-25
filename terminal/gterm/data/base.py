@@ -113,6 +113,20 @@ class KeyStats:
     as_of: datetime
 
 
+@dataclass
+class Ownership:
+    """Who owns a company. DataFrames may be empty when the source has no data (common outside the US)."""
+
+    symbol: str
+    institutions: pd.DataFrame  # Holder, pctHeld, Shares, Value, Date Reported
+    funds: pd.DataFrame  # same columns, mutual funds
+    insider_transactions: pd.DataFrame  # Insider, Position, Transaction/Text, Shares, Value, Start Date
+    insider_roster: pd.DataFrame  # Name, Position, Shares Owned Directly, Latest Transaction Date
+    summary: dict  # e.g. {"insiders_pct": 0.02, "institutions_pct": 0.62}
+    source: str
+    as_of: datetime
+
+
 class DataSource(ABC):
     """Interface every data source implements."""
 
@@ -138,4 +152,5 @@ class DataSource(ABC):
     def get_key_stats(self, symbol: str) -> KeyStats:
         raise DataSourceError(f"{self.name} does not supply key stats.")
 
-    # Later phases add get_macro, get_options_chain, ...
+    def get_ownership(self, symbol: str) -> Ownership:
+        raise DataSourceError(f"{self.name} does not supply ownership data.")

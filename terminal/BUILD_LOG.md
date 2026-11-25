@@ -402,3 +402,42 @@ volatility surface on free options data. **Cost:** nothing new.
 - Code editor: helpers + `show()`, tracebacks pointing at the user's code, timeouts, library, examples compile.
 - Workflows: order, loops, a full DCF→quality→merge→filter→sort run, error skipping, an AI block with a fake model + report sources, examples, Markdown tables.
 - DCF: terminal-growth cap and the thin-spread warning.
+
+---
+
+## Phase 6, batch A: derivatives, M&A, ownership, alternatives (25 Nov 2026)
+
+### Step 0: Data check
+- Yahoo has holders (institutions, funds), insider transactions and rosters, commodity futures, REIT/bond ETFs and crypto.
+- **Batch B hosts are blocked** (Polymarket, Alpaca, aisstream); you were asked to allow them.
+
+### Step 1: Derivatives (`gterm/analysis/strategies_opt.py`, `pages/14_Derivatives.py`)
+- Reuses the Phase 4 Black-Scholes/Greeks/IV code. Adds legs (call/put/stock, long/short), payoff at expiry, value today, breakevens
+  (interpolated zero crossings), max profit/loss with an "unlimited" check at the top of the price range, net Greeks, ten presets.
+- **Bug found live:** "use live option prices" crashed: pandas 3 refused to write 29.6 days into a whole-number column. Leg columns are
+  now decimal. Re-test: a SPY bull call spread from the 24 Dec chain: $1,503 debit, $2,497 max profit, breakeven $735.03.
+
+### Step 2: M&A (`gterm/analysis/ma.py`, `pages/15_Mergers_and_Acquisitions.py`)
+- Accretion/dilution with stock/cash mix and after-tax financing cost; breakeven synergies solved exactly; premium × stock-mix grid;
+  offer P/E, EV/EBITDA, EV/Sales; implied price from precedent deals you enter.
+- Live: Microsoft acquiring Salesforce at a 30% premium, half in stock: 0.6% dilutive, ~$1.1bn synergies to break even.
+- The page was first named "15_M&A.py"; the "&" can break the page URL, so it was renamed.
+
+### Step 3: Ownership (`Ownership` in the data adapter, `gterm/analysis/ownership.py`, `pages/16_Ownership.py`)
+- New adapter method `get_ownership` (yfinance + synthetic demo), cached 24 h.
+- **Bug found by tests:** when a source has no "Transaction" column, `df.get(col, "")` returned an empty *string*, so zipping over it
+  produced nothing. Fixed with an empty column of the right length.
+- Live: Apple 66.5% institutional, insiders net sellers of $241m over 12 months.
+- **Visual fix:** holders owned by all five companies all landed on the same point (an unreadable label pile). Holders with the same set of
+  companies are now spread around that point.
+
+### Step 4: Alternatives (`gterm/analysis/alternatives.py`, `pages/17_Alternatives.py`)
+- Returns, volatility, max drawdown and correlation with world equities in your base currency; weekday-only returns so crypto lines up with
+  markets; a risk-vs-return chart, a correlation matrix and US Treasury yields.
+- Live: oil and natural gas ~0 or negative correlation with MSCI World; high-yield bonds +0.77; Growthpoint (JSE) correctly converted
+  from cents to USD. Wheat/corn futures returned no data this run (Yahoo is intermittent for them); listed as missing, no failure.
+
+### Step 5: Tests: 161 passing (26 new)
+- Option payoffs vs hand calculations (long/short call, spreads, straddle, covered call, iron condor defined risk), value-today convergence,
+  net Greeks; accretion/dilution hand calculations, breakeven synergies giving exactly zero accretion; insider classification and netting;
+  networks on demo data; no overlapping shared holders; alternatives correlation and weekday handling.
