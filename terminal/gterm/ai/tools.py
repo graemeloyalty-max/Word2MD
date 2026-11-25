@@ -167,11 +167,21 @@ TOOLS = {
 }
 
 
-def definitions() -> list[dict]:
-    return [{"name": n, "description": d, "parameters": p} for n, (_, d, p) in TOOLS.items()]
+def definitions(include_mcp: bool = False) -> list[dict]:
+    """The terminal's own tools, plus (optionally) tools from enabled MCP servers."""
+    defs = [{"name": n, "description": d, "parameters": p} for n, (_, d, p) in TOOLS.items()]
+    if include_mcp:
+        from . import mcp_client
+
+        defs += mcp_client.definitions()[0]
+    return defs
 
 
 def execute(name: str, args: dict) -> dict:
+    if name.startswith("mcp__"):
+        from . import mcp_client
+
+        return mcp_client.call(name, args)
     if name not in TOOLS:
         return {"error": f"Unknown tool {name}"}
     fn = TOOLS[name][0]

@@ -3,7 +3,7 @@ import json
 import streamlit as st
 
 from gterm import reports, ui
-from gterm.ai import agent, team, tools
+from gterm.ai import agent, mcp_client, team, tools
 from gterm.ai.providers import PROVIDERS, ProviderError
 from gterm.core import config
 
@@ -58,9 +58,17 @@ with t_chat:
         model = c2.selectbox("Model", models, index=models.index(default),
                              help="Defaults to a model tested with the terminal's tools. If a model is busy (HTTP 503), pick another.")
         max_steps = c3.number_input("Max tool steps", 1, 20, 8, help="Each step is one request against your free quota.")
+        mcp_on = bool(mcp_client.load_servers()) and st.toggle("Include tools from MCP servers", True,
+                                                                  help="Servers are managed on the MCP Connections page.")
         if (prov_name, model) != (cur, saved):
             config.save_settings({**settings, "ai_provider": prov_name, "ai_models": {**settings.get("ai_models", {}), prov_name: model}})
-        st.caption("Tools: " + ", ".join(f"`{n}`" for n in tools.TOOLS) + ". " + NOTE)
+        defs = tools.definitions()
+        if mcp_on:
+            extra, _, mcp_errors = mcp_client.definitions()
+            defs += extra
+            for e in mcp_errors:
+                st.warning(f"MCP server unavailable: {e}")
+        st.caption("Tools: " + ", ".join(f"`{d['name']}`" for d in defs) + ". " + NOTE)
 
         key = f"chat_{prov_name}"
         chat = st.session_state.setdefault(key, {"history": [], "display": [], "tokens": [0, 0]})
@@ -89,7 +97,7 @@ with t_chat:
         with st.chat_message("assistant"):
             live = st.status("Working…", expanded=True)
             try:
-                res = agent.run(provider, model, q, chat["history"], int(max_steps),
+                res = agent.run(provider, model, q, chat["history"], int(max_steps), tool_defs=defs,
                                 on_step=lambda s: live.write(f"🔧 `{s['tool']}` {s['args']}" + (" ⚠️ error" if "error" in s["result"] else "")))
             except ProviderError as exc:
                 live.update(label="Failed", state="error")
@@ -166,6 +174,8 @@ with t_agents:
                 "Tip: a fast model (e.g. Groq) for data-gathering specialists and a stronger one for the editor.")
     cfgs = team.load_configs()
     tool_names = list(tools.TOOLS)
+    if mcp_client.load_servers():
+        tool_names += [d["name"] for d in mcp_client.definitions()[0]]
     with st.form("agents"):
         for name, c in cfgs.items():
             with st.expander(f"{'✅' if c.enabled else '⏸️'} {name}: {c.provider.split(' (')[0]} · {c.model}", expanded=False):

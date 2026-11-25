@@ -163,7 +163,8 @@ def run_research(question: str, cfgs: dict[str, AgentConfig] | None = None, on_e
     for name, sub_q in plan.items():
         c = cfgs[name]
         emit("agent", f"{name} ({c.provider.split(' (')[0]} · {c.model}) is working on: {sub_q}")
-        defs = [d for d in tools.definitions() if d["name"] in c.tools]
+        uses_mcp = any(t.startswith("mcp__") for t in c.tools)
+        defs = [d for d in tools.definitions(include_mcp=uses_mcp) if d["name"] in c.tools]
         collected = []
 
         def record(s, n=name):
