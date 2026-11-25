@@ -217,3 +217,12 @@ def test_edgar_requires_contact_user_agent():
 
     with pytest.raises(DataSourceError, match="User-Agent"):
         edgar_source._get_json("https://data.sec.gov/x", "")
+
+
+def test_terminal_growth_default_capped_at_risk_free_and_thin_spread_warns():
+    assert dcf.default_terminal_growth(0.007) == 0.007  # Swiss franc: cap at the low risk-free rate
+    assert dcf.default_terminal_growth(0.045) == 0.025
+    assert dcf.default_terminal_growth(-0.002) == 0.0
+    r = dcf.run(base_inputs(terminal_growth=0.09))  # WACC 10% -> 1-point spread
+    assert any("percentage points above terminal growth" in w for w in r.warnings)
+    assert not any("percentage points" in w for w in dcf.run(base_inputs(terminal_growth=0.02)).warnings)

@@ -58,7 +58,7 @@ def get_fundamentals(symbol: str) -> dict:
             "fiscal_years": years, "adjustments": f.adjustments, "source": f.source, "as_of": _now()}
 
 
-def run_dcf(symbol: str, growth_years_1_5: float | None = None, terminal_growth: float = 0.025,
+def run_dcf(symbol: str, growth_years_1_5: float | None = None, terminal_growth: float | None = None,
             equity_risk_premium: float = ctry.MATURE_ERP) -> dict:
     """DCF with the same defaults as the Equity Research page; growth defaults to revenue CAGR (capped -5%..20%)."""
     f = registry.fundamentals(symbol)
@@ -71,6 +71,8 @@ def run_dcf(symbol: str, growth_years_1_5: float | None = None, terminal_growth:
     fin = f.financial_currency
     live = registry.risk_free_usd() if fin == "USD" else None
     rf, rf_src = live if live else (ctry.risk_free_default(fin), ctry.RF_SOURCE)
+    if terminal_growth is None:
+        terminal_growth = dcf.default_terminal_growth(rf)  # capped at the risk-free rate
     tax = latest(inc, "tax_rate")
     tax = 0.21 if np.isnan(tax) else tax
     beta = f.beta if f.beta is not None and f.beta >= 0.3 else 1.0
@@ -149,7 +151,7 @@ TOOLS = {
                               _schema({"symbol": SYM, "period": {"type": "string", "enum": ["1mo", "3mo", "6mo", "1y", "2y", "5y"]}}, ["symbol"])),
     "get_fundamentals": (get_fundamentals, "Normalised annual revenue, operating income, net income, margin, free cash flow, net debt, equity (millions).",
                          _schema({"symbol": SYM}, ["symbol"])),
-    "run_dcf": (run_dcf, "Discounted cash flow valuation with the terminal's default assumptions; optionally override growth/terminal growth/ERP (fractions, e.g. 0.06).",
+    "run_dcf": (run_dcf, "Discounted cash flow valuation with the terminal's default assumptions (terminal growth defaults to min(2.5%, risk-free)); optionally override growth/terminal growth/ERP (fractions, e.g. 0.06).",
                 _schema({"symbol": SYM, "growth_years_1_5": {"type": "number"}, "terminal_growth": {"type": "number"},
                          "equity_risk_premium": {"type": "number"}}, ["symbol"])),
     "get_peer_multiples": (get_peer_multiples, "P/E, EV/EBITDA, P/B, EV/Sales vs regional sector peers, with implied prices.",

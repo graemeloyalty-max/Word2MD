@@ -113,8 +113,8 @@ with t_dcf:
     g_high = a2.number_input("Growth, years 1–5 (%)", -20.0, 50.0, round(float(np.clip(cagr, -0.05, 0.20)) * 100, 1), 0.5, key=k + "g") / 100
     a2.caption(f"default = revenue CAGR {cagr:.1%}, capped −5%…20%")
     years_total = a3.slider("Projection years", 6, 15, 10, key=k + "yrs")
-    g_term = a4.number_input("Terminal growth (%)", -2.0, 6.0, 2.5, 0.25, key=k + "gt") / 100
-    a4.caption("keep at or below long-run nominal GDP growth")
+    g_term = a4.number_input("Terminal growth (%)", -2.0, 6.0, round(dcf.default_terminal_growth(rf_d) * 100, 2), 0.25, key=k + "gt") / 100
+    a4.caption("default = min(2.5%, risk-free rate); keep at or below long-run nominal GDP growth")
 
     b1, b2, b3, b4, b5 = st.columns(5)
     rf = b1.number_input(f"Risk-free, {fin} (%)", 0.0, 20.0, round(rf_d * 100, 2), 0.05, key=k + "rf") / 100

@@ -60,6 +60,11 @@ class DCFResult:
     warnings: list = field(default_factory=list)
 
 
+def default_terminal_growth(risk_free: float, cap: float = 0.025) -> float:
+    """Long-run growth shouldn't exceed the risk-free rate of the cash-flow currency (a common rule of thumb)."""
+    return round(max(0.0, min(cap, risk_free)), 4)
+
+
 def cost_of_equity(i: DCFInputs) -> float:
     return i.risk_free + i.beta * i.equity_risk_premium + i.crp_exposure * i.country_risk_premium
 
@@ -100,6 +105,10 @@ def run(i: DCFInputs, discount_rate: float | None = None) -> DCFResult:
     ev = pv.sum() + pv_tv
     equity = ev - i.debt + i.cash - i.minority_interest
     proj = pd.DataFrame({"year": years, "growth": g, "fcf": fcf, "discount_factor": df, "pv_fcf": pv})
+    if r - i.terminal_growth < 0.02:
+        warnings.append(f"The discount rate ({r:.2%}) is only {(r - i.terminal_growth) * 100:.1f} percentage points above terminal growth "
+                        f"({i.terminal_growth:.2%}). The terminal value divides by that gap, so the result is unreliable: lower terminal "
+                        "growth or check the risk-free rate and beta.")
     share_tv = pv_tv / ev if ev else np.nan
     if share_tv > 0.8:
         warnings.append(f"{share_tv:.0%} of the value comes from the terminal value, so the result is very sensitive to terminal growth and WACC.")
